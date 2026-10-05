@@ -520,7 +520,13 @@ const STEP: Record<TraceKind, { mark: string; color: string; label?: string }> =
 
 // Below this many columns a step's place goes under its text, not beside it.
 const TRACE_SIDE_BY_SIDE = 72
-const TRACE_INDENT = 3
+
+const STEP_KEY: Record<TraceKind, string> = {
+  call: 'call',
+  async: 'runs later',
+  effect: 'side effect',
+  return: 'returns',
+}
 
 // The folder every path shares, as whole segments ("" when none).
 const sharedFolder = (paths: string[]): string => {
@@ -531,9 +537,51 @@ const sharedFolder = (paths: string[]): string => {
   return first.slice(0, n).join('/')
 }
 
-// trace: one line per step: its number, an indent per call depth, its kind,
-// what happens, and where (the folder all steps share said once, above).
-// A step's own lines from disk sit under it behind a thin bar.
+// Lines with their shared leading whitespace taken off.
+const dedent = (text: string): string => {
+  const lines = text.split('\n')
+  const indents = lines.filter(line => line.trim() !== '').map(line => /^[ \t]*/.exec(line)?.[0].length ?? 0)
+  const cut = indents.length > 0 ? Math.min(...indents) : 0
+  return lines.map(line => line.slice(cut)).join('\n')
+}
+
+// The call-tree guides before each step, as `tree` draws them: for each
+// level above the step a bar where that level goes on below, then the
+// step's own branch. A phase starts a fresh tree.
+const treeGuides = (depths: number[], phaseStarts: boolean[]): { branch: string; under: string }[] => {
+  const goesOn = (i: number, depth: number): boolean => {
+    for (let j = i + 1; j < depths.length; j += 1) {
+      if (phaseStarts[j]) return false
+      const d = depths[j] ?? 0
+      if (d < depth) return false
+      if (d === depth) return true
+    }
+    return false
+  }
+  const ancestor = (i: number, depth: number): number => {
+    for (let j = i - 1; j >= 0; j -= 1) {
+      if ((depths[j] ?? 0) === depth) return j
+      if (phaseStarts[j]) break
+    }
+    return -1
+  }
+
+  return depths.map((depth, i) => {
+    let lead = ''
+    for (let level = 1; level < depth; level += 1) {
+      const a = ancestor(i, level)
+      lead += a >= 0 && goesOn(a, level) ? '│  ' : '   '
+    }
+    if (depth === 0) return { branch: '', under: '' }
+    const more = goesOn(i, depth)
+    return { branch: lead + (more ? '├─ ' : '└─ '), under: lead + (more ? '│  ' : '   ') }
+  })
+}
+
+// trace: one line per step: its number, call-tree guides, its kind, what
+// happens, and where (the folder all steps share said once, above). A phase
+// heading marks a new stretch of time; a step's own lines from disk sit
+// under it, dedented, behind a thin bar; a key names the marks in use.
 const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet']): RenderElement => {
   const { Box, Text, Code } = els
   const places = t.steps.map(step => parseAt(step.at))
@@ -541,44 +589,63 @@ const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet'
   const short = (path: string) => (folder !== '' ? path.slice(folder.length + 1) : path)
   const isSideBySide = width >= TRACE_SIDE_BY_SIDE
   const numberWidth = String(t.steps.length).length + 1
+  const depths = t.steps.map(step => Math.min(step.depth ?? 0, 6))
+  const guides = treeGuides(
+    depths,
+    t.steps.map((step, i) => i > 0 && step.phase !== undefined),
+  )
+  const kindsUsed = (['async', 'effect', 'return'] as const).filter(kind => t.steps.some(step => step.kind === kind))
 
   return (
     <Box flexDirection="column">
-      {folder !== '' && (
-        <Box marginBottom={1}>
-          <Text dimColor>in {folder}/</Text>
+      {(folder !== '' || kindsUsed.length > 0) && (
+        <Box marginBottom={1} flexDirection="row" justifyContent="space-between">
+          <Text dimColor>{folder !== '' ? `in ${folder}/` : ''}</Text>
+          {kindsUsed.length > 0 && (
+            <Text>
+              {kindsUsed.map(kind => (
+                <Text>
+                  <Text color={STEP[kind].color}>{STEP[kind].mark}</Text>
+                  <Text dimColor> {STEP_KEY[kind]}  </Text>
+                </Text>
+              ))}
+            </Text>
+          )}
         </Box>
       )}
       {t.steps.map((step, i) => {
         const kind = STEP[step.kind ?? 'call']
         const place = places[i]
+        const guide = guides[i] ?? { branch: '', under: '' }
         const where = place !== undefined ? `${short(place.path)}:${place.line}` : step.at
-        const indent = Math.min(step.depth ?? 0, 6) * TRACE_INDENT
         const shown =
           place !== undefined && (step.show ?? 0) > 0
             ? snippet({ type: 'code', path: place.path, start: place.line, end: place.line + (step.show ?? 1) - 1 })
             : undefined
-        const text = (
-          <Text bold={step.kind === 'effect'} color={step.kind === 'effect' ? NOTE.color : undefined}>
-            {step.what}
-            {kind.label !== undefined && <Text dimColor> · {kind.label}</Text>}
-          </Text>
-        )
 
         return (
           <Box flexDirection="column">
+            {step.phase !== undefined && (
+              <Box marginTop={i > 0 ? 1 : 0}>
+                <Text color={ACCENT}>── {step.phase} ──</Text>
+              </Box>
+            )}
             <Box flexDirection="row">
               <Box width={numberWidth} flexShrink={0}>
                 <Text dimColor>{i + 1}</Text>
               </Box>
-              <Box width={indent} flexShrink={0} />
+              <Box flexShrink={0}>
+                <Text dimColor>{guide.branch}</Text>
+              </Box>
               <Box width={2} flexShrink={0}>
                 <Text color={kind.color} bold>
                   {kind.mark}
                 </Text>
               </Box>
               <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-                {text}
+                <Text bold={step.kind === 'effect'} color={step.kind === 'effect' ? NOTE.color : undefined}>
+                  {step.what}
+                </Text>
                 {!isSideBySide && <Text dimColor>{where}</Text>}
               </Box>
               {isSideBySide && (
@@ -588,10 +655,11 @@ const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet'
               )}
             </Box>
             {shown !== undefined && (
-              <Box flexDirection="row" marginLeft={numberWidth + indent + 2}>
-                <Text dimColor>▏</Text>
+              <Box flexDirection="row">
+                <Box width={numberWidth} flexShrink={0} />
+                <Text dimColor>{guide.under}  ▏</Text>
                 {shown.kind === 'ready' ? (
-                  <Code source={shown.text} startLine={shown.start} path={place?.path} wrap="truncate-end" />
+                  <Code source={dedent(shown.text)} path={place?.path} wrap="truncate-end" />
                 ) : shown.kind === 'failed' ? (
                   <Text dimColor>
                     couldn't read {place !== undefined ? short(place.path) : step.at}: {shown.reason.replace(/^.*failed: /, '')}

@@ -156,10 +156,25 @@ describe('viz blocks', () => {
       expect(await ui.find({ type: 'Text', text: /service prices the order/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: 'in src/' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: 'db/orders.ts:8' })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /· effect/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /side effect/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '   └─ ' })).toBeDefined()
       await ui.unmount()
     })
   }
+
+  test('a trace phase heads a new stretch and restarts the tree', async $ => {
+    const steps = [
+      { at: 'a.ts:1', what: 'first' },
+      { at: 'a.ts:2', what: 'child', depth: 1 },
+      { at: 'a.ts:3', what: 'later', phase: 'when the timer fires' },
+      { at: 'a.ts:4', what: 'later child', depth: 1 },
+    ]
+    const ui = await mount($, 'terminal', fence({ type: 'trace', steps }))
+
+    expect(await ui.find({ type: 'Text', text: /── when the timer fires ──/ })).toBeDefined()
+    expect((await ui.findAll({ type: 'Text', text: '└─ ' })).length).toBe(2)
+    await ui.unmount()
+  })
 
   test('a trace step without a path:line place is refused', async $ => {
     const ui = await mount($, 'terminal', fence({ type: 'trace', steps: [{ at: 'somewhere', what: 'x' }] }))

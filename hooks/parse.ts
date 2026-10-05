@@ -54,14 +54,15 @@ export type Snippet = {
 }
 
 // trace: an execution path, step by step: where (`file:line`), what happens
-// there, what kind of step it is, how deep in the calls, and optionally a
-// few of its lines read from disk.
+// there, what kind of step it is, how deep in the calls, optionally a few of
+// its lines read from disk, and a `phase` that starts a new stretch of time
+// (a later callback, a second pass).
 export type TraceKind = 'call' | 'async' | 'effect' | 'return'
 
 export type Trace = {
   type: 'trace'
   title?: string
-  steps: { at: string; what: string; kind?: TraceKind; depth?: number; show?: number }[]
+  steps: { at: string; what: string; kind?: TraceKind; depth?: number; show?: number; phase?: string }[]
 }
 
 export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet | Trace
@@ -220,6 +221,7 @@ export const check = (data: unknown): string | undefined => {
       typeof step.what === 'string' &&
       (step.kind === undefined || kinds.includes(step.kind)) &&
       (step.depth === undefined || (Number.isInteger(step.depth) && (step.depth as number) >= 0)) &&
+      (step.phase === undefined || typeof step.phase === 'string') &&
       (step.show === undefined ||
         (Number.isInteger(step.show) && (step.show as number) >= 0 && (step.show as number) <= TRACE_MAX_SHOW))
     if (!Array.isArray(data.steps) || data.steps.length === 0) return 'trace needs steps'
