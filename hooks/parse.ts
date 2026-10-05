@@ -73,7 +73,30 @@ export type Trace = {
   }[]
 }
 
-export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet | Trace
+// sequence: who calls whom, in order. A message's kind: a call (solid), a
+// reply (dashed back), or async (fire and forget).
+export type SequenceKind = 'call' | 'reply' | 'async'
+
+export type Sequence = {
+  type: 'sequence'
+  title?: string
+  participants: string[]
+  messages: { from: string; to: string; text: string; kind?: SequenceKind }[]
+}
+
+// schema: entities with their fields, and relations between fields
+// ("orders.user_id" to "users.id"). A relation reads from the many side to
+// the one side unless its kind says otherwise.
+export type Relation = 'many-to-one' | 'one-to-one' | 'many-to-many'
+
+export type Schema = {
+  type: 'schema'
+  title?: string
+  entities: { name: string; fields: { name: string; type?: string; key?: 'pk' | 'fk' }[]; note?: string }[]
+  relations?: { from: string; to: string; kind?: Relation; label?: string }[]
+}
+
+export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet | Trace | Sequence | Schema
 
 // `path:line` as a trace step names its place; undefined when it does not.
 export const parseAt = (at: string): { path: string; line: number } | undefined => {
@@ -236,6 +259,40 @@ export const check = (data: unknown): string | undefined => {
     if (!Array.isArray(data.steps) || data.steps.length === 0) return 'trace needs steps'
     if (!data.steps.every(isStep)) {
       return `each trace step needs "at" as path:line and "what"; kind is call, async, effect or return; show at most ${TRACE_MAX_SHOW}`
+    }
+    return undefined
+  }
+
+  if (data.type === 'sequence') {
+    if (!isStrings(data.participants) || data.participants.length < 2) return 'sequence needs 2+ participants'
+    const names: readonly unknown[] = data.participants
+    const kinds: readonly unknown[] = ['call', 'reply', 'async']
+    const isMessage = (m: unknown) =>
+      isObject(m) &&
+      names.includes(m.from) &&
+      names.includes(m.to) &&
+      typeof m.text === 'string' &&
+      (m.kind === undefined || kinds.includes(m.kind))
+    if (!Array.isArray(data.messages) || data.messages.length === 0) return 'sequence needs messages'
+    if (!data.messages.every(isMessage)) return 'each message needs "from" and "to" among the participants, and "text"; kind is call, reply or async'
+    return undefined
+  }
+
+  if (data.type === 'schema') {
+    const isField = (f: unknown) =>
+      isObject(f) && typeof f.name === 'string' && (f.type === undefined || typeof f.type === 'string') && (f.key === undefined || f.key === 'pk' || f.key === 'fk')
+    const isEntity = (e: unknown) => isObject(e) && typeof e.name === 'string' && Array.isArray(e.fields) && e.fields.every(isField)
+    if (!Array.isArray(data.entities) || data.entities.length === 0 || !data.entities.every(isEntity)) {
+      return 'schema needs entities, each with a "name" and "fields" ({"name", "type"?, "key"?: pk or fk})'
+    }
+    const fields = new Set(
+      (data.entities as { name: string; fields: { name: string }[] }[]).flatMap(e => [e.name, ...e.fields.map(f => `${e.name}.${f.name}`)]),
+    )
+    const kinds: readonly unknown[] = ['many-to-one', 'one-to-one', 'many-to-many']
+    const isRelation = (r: unknown) =>
+      isObject(r) && fields.has(String(r.from)) && fields.has(String(r.to)) && (r.kind === undefined || kinds.includes(r.kind))
+    if (data.relations !== undefined && !(Array.isArray(data.relations) && data.relations.every(isRelation))) {
+      return 'each relation needs "from" and "to" naming an entity or entity.field; kind is many-to-one, one-to-one or many-to-many'
     }
     return undefined
   }

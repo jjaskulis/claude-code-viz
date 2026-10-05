@@ -184,6 +184,72 @@ describe('viz blocks', () => {
     await ui.unmount()
   })
 
+  const sequence = {
+    type: 'sequence',
+    participants: ['client', 'api', 'db'],
+    messages: [
+      { from: 'client', to: 'api', text: 'POST /orders' },
+      { from: 'api', to: 'db', text: 'insert row' },
+      { from: 'db', to: 'api', text: 'id', kind: 'reply' },
+      { from: 'api', to: 'api', text: 'emit event', kind: 'async' },
+      { from: 'api', to: 'client', text: '201 Created', kind: 'reply' },
+    ],
+  }
+
+  for (const surface of ['terminal', 'mobile'] as const) {
+    test(`a sequence draws lifelines, numbered messages and arrows on ${surface}`, async $ => {
+      const ui = await mount($, surface, fence(sequence))
+
+      expect(await ui.find({ type: 'Text', text: 'client' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /POST \/orders/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /─+▶/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /◀╌+/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /↺ 4\./ })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test('a sequence on a narrow terminal is listed', async $ => {
+    const ui = await mount($, 'terminal', fence(sequence), 24)
+
+    expect(await ui.find({ type: 'Text', text: /^1\. $/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '⇠' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a sequence message from an unknown participant is refused', async $ => {
+    const bad = { ...sequence, messages: [{ from: 'cache', to: 'api', text: 'x' }] }
+    const ui = await mount($, 'terminal', fence(bad))
+
+    expect(await ui.find({ type: 'Text', text: /among the participants/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  const schema = {
+    type: 'schema',
+    entities: [
+      { name: 'users', fields: [{ name: 'id', type: 'uuid', key: 'pk' }, { name: 'email' }] },
+      { name: 'orders', fields: [{ name: 'id', key: 'pk' }, { name: 'user_id', key: 'fk' }] },
+    ],
+    relations: [{ from: 'orders.user_id', to: 'users.id', label: 'placed by' }],
+  }
+
+  test('a schema lists its entities where the surface has no Image', async $ => {
+    const ui = await mount($, 'desktop', fence(schema))
+
+    expect(await ui.find({ type: 'Text', text: 'users' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /orders\.user_id → users\.id: placed by/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a schema relation to an unknown field is refused', async $ => {
+    const bad = { ...schema, relations: [{ from: 'orders.user', to: 'users.id' }] }
+    const ui = await mount($, 'terminal', fence(bad))
+
+    expect(await ui.find({ type: 'Text', text: /naming an entity or entity\.field/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('a narrow terminal stacks the comparison', async $ => {
     const ui = await mount($, 'terminal', COMPARE, 40)
 

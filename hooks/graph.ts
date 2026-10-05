@@ -171,3 +171,53 @@ export const NOTE = {
 // note is rendered at its columns' width and padded to whole rows, so the
 // Image box holds it unstretched.
 export const CELL_PX = { width: 14, height: 28 } as const
+
+// Text for a Graphviz HTML-like label: its markup characters escaped.
+const html = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+type SchemaInput = {
+  entities: { name: string; fields: { name: string; type?: string; key?: 'pk' | 'fk' }[]; note?: string }[]
+  relations?: { from: string; to: string; kind?: 'many-to-one' | 'one-to-one' | 'many-to-many'; label?: string }[]
+}
+
+// The link ends for each relation kind, read from the `from` side: crow's
+// foot for many, a bar for one.
+const RELATION_ENDS = {
+  'many-to-one': { tail: 'crow', head: 'tee' },
+  'one-to-one': { tail: 'tee', head: 'tee' },
+  'many-to-many': { tail: 'crow', head: 'crow' },
+} as const
+
+// A schema block as Graphviz source: each entity a table (its name, then a
+// row per field with its key and type), each relation a link between field
+// rows. Nodes and ports get generated ids, so no name reaches the source
+// outside an escaped label.
+export const schemaToDot = (schema: SchemaInput): string => {
+  const ids = new Map<string, string>()
+  const nodes = schema.entities.map((entity, e) => {
+    ids.set(entity.name, `e${e}`)
+    const rows = entity.fields.map((field, f) => {
+      ids.set(`${entity.name}.${field.name}`, `e${e}:f${f}`)
+      const key = field.key !== undefined ? `<font color="${NOTE.color}">${field.key.toUpperCase()}</font>  ` : ''
+      const type = field.type !== undefined ? `  <font color="${THEME.muted}">${html(field.type)}</font>` : ''
+      return `<tr><td port="f${f}" align="left">${key}${html(field.name)}${type}</td></tr>`
+    })
+    const note =
+      entity.note !== undefined ? `<tr><td align="left"><i><font color="${THEME.muted}">${html(entity.note)}</font></i></td></tr>` : ''
+    return (
+      `e${e} [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="6" color="${THEME.muted}">` +
+      `<tr><td bgcolor="#2b2b2b" align="left"><b>${html(entity.name)}</b></td></tr>${rows.join('')}${note}</table>>];`
+    )
+  })
+  const edges = (schema.relations ?? []).flatMap(relation => {
+    const from = ids.get(relation.from)
+    const to = ids.get(relation.to)
+    if (from === undefined || to === undefined) return []
+    const ends = RELATION_ENDS[relation.kind ?? 'many-to-one']
+    const label = relation.label !== undefined ? `, label=<${html(relation.label)}>` : ''
+    return [`${from} -> ${to} [dir=both, arrowtail=${ends.tail}, arrowhead=${ends.head}${label}];`]
+  })
+
+  return `digraph { rankdir=LR; node [shape=plain]; ${nodes.join(' ')} ${edges.join(' ')} }`
+}

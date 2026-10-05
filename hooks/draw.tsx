@@ -4,10 +4,25 @@
 
 import type { ElementTable, RenderElement } from 'claude-code'
 
-import { CELL_PX, NOTE } from './graph'
+import { CELL_PX, NOTE, schemaToDot } from './graph'
 import type { Loaded, Rendered } from './graph'
 import { nest, parseAt } from './parse'
-import type { Chart, Compare, Graph, Node, Segment, Snippet, Status, Timeline, Trace, TraceKind, Tree } from './parse'
+import type {
+  Chart,
+  Compare,
+  Graph,
+  Node,
+  Schema,
+  Segment,
+  Sequence,
+  SequenceKind,
+  Snippet,
+  Status,
+  Timeline,
+  Trace,
+  TraceKind,
+  Tree,
+} from './parse'
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Markdown' | 'Code'> & {
   Image?: ElementTable<'terminal'>['Image']
@@ -69,7 +84,11 @@ const drawSegment = (els: Els, s: Segment, columns: number, lookups: Lookups, ke
             ? drawSnippet(els, s.viz, lookups.snippet(s.viz), inner, lookups.note)
             : s.viz.type === 'trace'
               ? drawTrace(els, s.viz, inner, lookups.snippet)
-              : drawTree(els, s.viz)
+              : s.viz.type === 'sequence'
+                ? drawSequence(els, s.viz, inner)
+                : s.viz.type === 'schema'
+                  ? drawSchema(els, s.viz, inner, lookups.picture)
+                  : drawTree(els, s.viz)
 
   return (
     <Box key={key} flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
@@ -295,7 +314,13 @@ const MAX_ROWS = 40
 
 // graph and chart: the rendered picture, sized to its own aspect within the
 // room; where there is no picture, what the block holds as text.
-const drawPicture = (els: Els, block: Graph | Chart, width: number, rendered: Rendered): RenderElement => {
+const drawPicture = (
+  els: Els,
+  block: Graph | Chart,
+  width: number,
+  rendered: Rendered,
+  fallback?: RenderElement,
+): RenderElement => {
   const { Box, Text, Code, Image } = els
   const noun = block.type === 'graph' ? 'diagram' : 'chart'
 
@@ -310,7 +335,7 @@ const drawPicture = (els: Els, block: Graph | Chart, width: number, rendered: Re
   if (rendered.kind === 'failed' || Image === undefined) {
     return (
       <Box flexDirection="column">
-        {block.type === 'graph' ? <Code source={block.dot} language="dot" /> : drawChartData(els, block)}
+        {fallback ?? (block.type === 'graph' ? <Code source={block.dot} language="dot" /> : drawChartData(els, block))}
         {rendered.kind === 'failed' && (
           <Text dimColor>
             {block.type}: {rendered.reason}
@@ -686,4 +711,156 @@ const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet'
       })}
     </Box>
   )
+}
+
+// schema: tables linked field to field, laid out by Graphviz from the block
+// (no dot written by the model); without a picture, entities as text.
+const drawSchema = (els: Els, s: Schema, width: number, picture: Lookups['picture']): RenderElement => {
+  const { Box, Text } = els
+  const graph: Graph = { type: 'graph', title: s.title, dot: schemaToDot(s) }
+  const asText = (
+    <Box flexDirection="column">
+      {s.entities.map(entity => (
+        <Text>
+          <Text bold>{entity.name}</Text>
+          <Text dimColor>: </Text>
+          {entity.fields.map((field, i) => (
+            <Text>
+              {i > 0 ? ', ' : ''}
+              {field.key !== undefined && <Text color={NOTE.color}>{field.key.toUpperCase()} </Text>}
+              {field.name}
+              {field.type !== undefined && <Text dimColor> {field.type}</Text>}
+            </Text>
+          ))}
+        </Text>
+      ))}
+      {(s.relations ?? []).map(relation => (
+        <Text dimColor>
+          {relation.from} → {relation.to}
+          {relation.kind !== undefined ? ` (${relation.kind})` : ''}
+          {relation.label !== undefined ? `: ${relation.label}` : ''}
+        </Text>
+      ))}
+    </Box>
+  )
+
+  return drawPicture(els, graph, width, picture(graph), asText)
+}
+
+type CellStyle = 'space' | 'life' | 'name' | 'label' | 'num' | SequenceKind
+type Cell = { ch: string; style: CellStyle }
+
+const ARROW: Record<SequenceKind, { line: string; right: string; left: string }> = {
+  call: { line: '─', right: '▶', left: '◀' },
+  reply: { line: '╌', right: '▶', left: '◀' },
+  async: { line: '─', right: '▷', left: '◁' },
+}
+
+// Below this many columns between lifelines a sequence is listed instead.
+const SEQUENCE_MIN_SPACING = 8
+const SEQUENCE_MAX_SPACING = 32
+
+// sequence: lifelines in columns, one numbered message per two rows (its
+// text, then its arrow), drawn from text so it copies and fits any surface.
+const drawSequence = (els: Els, s: Sequence, width: number): RenderElement => {
+  const { Box, Text } = els
+  const n = s.participants.length
+  const longest = Math.max(...s.participants.map(p => p.length))
+  const margin = Math.ceil(longest / 2)
+  const spacing = Math.min(SEQUENCE_MAX_SPACING, Math.floor((width - 1 - 2 * margin) / (n - 1)))
+
+  if (spacing < SEQUENCE_MIN_SPACING || longest > spacing + 2) {
+    return (
+      <Box flexDirection="column">
+        {s.messages.map((m, i) => (
+          <Text>
+            <Text dimColor>{i + 1}. </Text>
+            {m.from} <Text color={m.kind === 'async' ? NOTE.color : ACCENT}>{m.kind === 'reply' ? '⇠' : '→'}</Text> {m.to}
+            <Text dimColor>: </Text>
+            {m.text}
+          </Text>
+        ))}
+      </Box>
+    )
+  }
+
+  const centers = s.participants.map((_, i) => margin + i * spacing)
+  const total = (centers[n - 1] ?? 0) + margin + 1
+  const column = (name: string) => centers[s.participants.indexOf(name)] ?? 0
+
+  const blank = (): Cell[] => {
+    const row: Cell[] = Array.from({ length: total }, () => ({ ch: ' ', style: 'space' }))
+    for (const c of centers) row[c] = { ch: '│', style: 'life' }
+    return row
+  }
+  const put = (row: Cell[], at: number, text: string, style: CellStyle, max = total - at) => {
+    const fitted = text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text
+    ;[...fitted].forEach((ch, i) => {
+      if (at + i >= 0 && at + i < total) row[at + i] = { ch, style }
+    })
+  }
+
+  const header: Cell[] = Array.from({ length: total }, () => ({ ch: ' ', style: 'space' }))
+  s.participants.forEach((name, i) => {
+    const start = Math.min(Math.max(0, (centers[i] ?? 0) - Math.floor(name.length / 2)), total - name.length)
+    put(header, start, name, 'name')
+  })
+
+  const rows: Cell[][] = [header, blank()]
+  s.messages.forEach((m, i) => {
+    const kind = m.kind ?? 'call'
+    const from = column(m.from)
+    const to = column(m.to)
+    const number = `${i + 1}. `
+    const label = blank()
+
+    if (from === to) {
+      put(label, from + 2, `↺ ${number}`, 'num')
+      put(label, from + 4 + number.length, m.text, 'label')
+      rows.push(label)
+      return
+    }
+
+    const left = Math.min(from, to)
+    const right = Math.max(from, to)
+    const room = right - left - 3
+    put(label, left + 2, number, 'num', room)
+    put(label, left + 2 + number.length, m.text, 'label', Math.max(0, room - number.length))
+
+    const arrow = blank()
+    for (let x = left + 1; x < right; x += 1) arrow[x] = { ch: ARROW[kind].line, style: kind }
+    if (from < to) arrow[right - 1] = { ch: ARROW[kind].right, style: kind }
+    else arrow[left + 1] = { ch: ARROW[kind].left, style: kind }
+    rows.push(label, arrow)
+  })
+
+  const color: Record<CellStyle, { color?: string; dimColor?: boolean; bold?: boolean }> = {
+    space: {},
+    life: { dimColor: true },
+    name: { bold: true },
+    label: {},
+    num: { dimColor: true },
+    call: { color: ACCENT },
+    reply: { color: 'gray' },
+    async: { color: NOTE.color },
+  }
+
+  // Each row as runs of one style, so a row is a handful of Texts.
+  const draw = (row: Cell[]) => {
+    const runs: { style: CellStyle; text: string }[] = []
+    for (const cell of row) {
+      const last = runs[runs.length - 1]
+      if (last !== undefined && last.style === cell.style) last.text += cell.ch
+      else runs.push({ style: cell.style, text: cell.ch })
+    }
+    return (
+      <Text wrap="truncate-end">
+        {runs.map(run => (
+          <Text {...color[run.style]}>{run.text}</Text>
+        ))}
+      </Text>
+    )
+  }
+
+  return <Box flexDirection="column">{rows.map(draw)}</Box>
 }
