@@ -149,7 +149,7 @@ export const sliceLines = (text: string, start: number, end: number | undefined,
 // `@file` reads, no `%` escapes, as a command-line `caption:` argument has).
 export const NOTE = {
   font: '/System/Library/Fonts/SFNS.ttf',
-  color: '#e6e6e6',
+  color: '#e5c07b',
   points: 32,
   interline: 6,
 } as const

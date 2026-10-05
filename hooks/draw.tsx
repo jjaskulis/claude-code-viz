@@ -4,7 +4,7 @@
 
 import type { ElementTable, RenderElement } from 'claude-code'
 
-import { CELL_PX } from './graph'
+import { CELL_PX, NOTE } from './graph'
 import type { Loaded, Rendered } from './graph'
 import { nest } from './parse'
 import type { Chart, Compare, Graph, Node, Segment, Snippet, Status, Timeline, Tree } from './parse'
@@ -389,7 +389,7 @@ const mark = (n: number): string => (n >= 1 && n <= 20 ? String.fromCodePoint(0x
 
 // Where a note's marker ends and its text begins: "  ↳ ① ".
 const NOTE_INDENT = 6
-const NOTE_TINT = '#16262b'
+const NOTE_TINT = '#2a2418'
 
 // code: the lines with the engine's highlighter, cut after each line a note
 // points at so the note sits right under it; numbering runs on across cuts.
@@ -417,7 +417,7 @@ const drawSnippet = (
         />
       ) : (
         <Box width={noteColumns} backgroundColor={NOTE_TINT} paddingX={1}>
-          <Text italic color="white">
+          <Text italic color={NOTE.color}>
             {text}
           </Text>
         </Box>
@@ -426,7 +426,7 @@ const drawSnippet = (
     return (
       <Box flexDirection="row">
         <Box width={NOTE_INDENT}>
-          <Text color={ACCENT} bold>
+          <Text color={NOTE.color} bold>
             {'  '}↳ {mark(n)}
           </Text>
         </Box>
