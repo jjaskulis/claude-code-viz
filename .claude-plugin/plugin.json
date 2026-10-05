@@ -1,0 +1,6 @@
+{
+  "name": "viz",
+  "version": "0.1.0",
+  "description": "Teaches the model a small visual vocabulary (```viz blocks) and draws those blocks in its replies as real layouts",
+  "types": "./types/index.d.ts"
+}

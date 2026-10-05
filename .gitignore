@@ -1,0 +1,10 @@
+# Installed by `npm install` in renderers/
+renderers/node_modules/
+
+# Resolved against the installing machine's registry; package.json pins versions
+renderers/package-lock.json
+
+# Written by Claude Code when it loads the mod
+.claude-plugin/types/
+
+.DS_Store

@@ -1,0 +1,10 @@
+{
+  "name": "viz-renderers",
+  "private": true,
+  "description": "Command-line renderers the viz mod runs: vl2svg for chart blocks",
+  "dependencies": {
+    "vega": "^6.4.0",
+    "vega-cli": "^6.4.0",
+    "vega-lite": "^6.4.3"
+  }
+}

@@ -1,0 +1,134 @@
+import { describe, expect, test } from 'claude-code/testing'
+
+const fence = (json: object) => '```viz\n' + JSON.stringify(json) + '\n```'
+
+const COMPARE = fence({
+  type: 'compare',
+  title: 'Queue backends',
+  options: ['Redis', 'SQS', 'Postgres'],
+  criteria: [
+    { name: 'Latency', values: ['<1 ms', '~20 ms', '~5 ms'], best: 0 },
+    { name: 'Ops cost', values: ['self-hosted', 'managed', 'already run'], best: 2 },
+  ],
+  pick: 2,
+  why: 'No new infrastructure.',
+})
+
+const TIMELINE = fence({
+  type: 'timeline',
+  steps: [
+    { label: 'Add column', status: 'done' },
+    { label: 'Backfill', detail: '40% of rows', status: 'active' },
+    { label: 'Switch reads', status: 'todo' },
+  ],
+})
+
+const TREE = fence({
+  type: 'tree',
+  items: [
+    { path: 'src/api/routes.ts', change: 'edit', note: 'new endpoint' },
+    { path: 'src/api/auth.ts', change: 'add' },
+    { path: 'src/legacy.ts', change: 'del' },
+  ],
+})
+
+const mount = ($: any, surface: 'terminal' | 'desktop' | 'vscode' | 'mobile', text: string, columns = 100) =>
+  $.ui.mount({
+    plugin: 'viz',
+    surface,
+    component: 'AssistantMessage',
+    props: { text, isFirstOfReply: true },
+    viewport: { columns, rows: 40 },
+  })
+
+describe('viz blocks', () => {
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+    test(`all three types draw on ${surface}`, async $ => {
+      const text = `Here is the plan.\n\n${COMPARE}\n\nThen:\n\n${TIMELINE}\n\n${TREE}\n\nDone.`
+      const ui = await mount($, surface, text)
+
+      expect(await ui.find({ type: 'Text', text: /Queue backends/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /→ Postgres/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /1\/3 done/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /routes\.ts/ })).toBeDefined()
+      expect(await ui.find({ type: 'Markdown', text: /Here is the plan/ })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test('a graph block shows its dot source where the surface has no Image', async $ => {
+    const ui = await mount($, 'desktop', fence({ type: 'graph', title: 'Flow', dot: 'digraph { a -> b }' }))
+
+    expect(await ui.find({ type: 'Code' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Flow/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a graph block without dot source is refused', async $ => {
+    const ui = await mount($, 'terminal', fence({ type: 'graph', dot: 'a -> b' }))
+
+    expect(await ui.find({ type: 'Text', text: /graph needs "dot"/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  const latency = {
+    data: { values: [{ service: 'api', ms: 120 }, { service: 'search', ms: 310 }] },
+    mark: 'bar',
+    encoding: { x: { field: 'service', type: 'nominal' }, y: { field: 'ms', type: 'quantitative' } },
+  }
+
+  test('a chart block lists its data where the surface has no Image', async $ => {
+    const ui = await mount($, 'desktop', fence({ type: 'chart', title: 'Latency', spec: latency }))
+
+    expect(await ui.find({ type: 'Text', text: 'service' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'search' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a chart that would fetch its data is refused', async $ => {
+    const spec = { ...latency, data: { url: 'https://example.com/data.json' } }
+    const ui = await mount($, 'terminal', fence({ type: 'chart', spec }))
+
+    expect(await ui.find({ type: 'Text', text: /must be inline/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a chart spec without a mark is refused', async $ => {
+    const ui = await mount($, 'terminal', fence({ type: 'chart', spec: { data: latency.data } }))
+
+    expect(await ui.find({ type: 'Text', text: /needs a mark/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a narrow terminal stacks the comparison', async $ => {
+    const ui = await mount($, 'terminal', COMPARE, 40)
+
+    expect(await ui.find({ type: 'Text', text: /Ops cost: / })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('an unclosed fence shows a placeholder while streaming', async $ => {
+    const ui = await mount($, 'terminal', 'Comparing:\n\n```viz\n{"type":"compare","options":["A"')
+
+    expect(await ui.find({ type: 'Text', text: /drawing compare/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a broken block falls back to its source', async $ => {
+    const ui = await mount($, 'terminal', '```viz\n{"type":"pie"}\n```')
+
+    expect(await ui.find({ type: 'Text', text: /unknown type "pie"/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a reply without blocks is left to the engine', async ($, on) => {
+    on('ui.render', ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine</Text>
+    })
+    const ui = await mount($, 'terminal', 'Plain answer.')
+
+    expect(await ui.find({ type: 'Text', text: 'engine' })).toBeDefined()
+    await ui.unmount()
+  })
+})
