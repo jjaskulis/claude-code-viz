@@ -124,3 +124,21 @@ export const pngSize = (base64: string): { width: number; height: number } | und
   const view = new DataView(head.buffer, head.byteOffset, head.byteLength)
   return { width: view.getUint32(16), height: view.getUint32(20) }
 }
+
+// A code block's lines while register.tsx reads them from disk.
+export type Loaded =
+  | { kind: 'pending' }
+  | { kind: 'ready'; text: string; start: number; isCut: boolean }
+  | { kind: 'failed'; reason: string }
+
+// Lines `start` to `end` (1-based, inclusive) of a file's text, at most
+// `max` of them; `end` absent, from `start` for `max` lines.
+export const sliceLines = (text: string, start: number, end: number | undefined, max: number): Loaded => {
+  const lines = text.split('\n')
+  if (start > lines.length) return { kind: 'failed', reason: `the file has ${lines.length} lines, fewer than ${start}` }
+
+  const wanted = Math.min(end ?? start + max - 1, lines.length)
+  const last = Math.min(wanted, start + max - 1)
+
+  return { kind: 'ready', text: lines.slice(start - 1, last).join('\n'), start, isCut: last < wanted }
+}

@@ -28,3 +28,8 @@ chart: numbers as a picture (bars, lines, points, areas, heat maps) as a Vega-Li
 ```viz
 {"type":"chart","title":"p95 latency","spec":{"data":{"values":[{"service":"api","ms":120},{"service":"search","ms":310},{"service":"auth","ms":45}]},"mark":"bar","encoding":{"x":{"field":"service","type":"nominal","sort":"-y"},"y":{"field":"ms","type":"quantitative","title":"p95 (ms)"}}}}
 ```
+
+code: explain code by pinning numbered notes to its lines. Give "path" (relative to the project root, or absolute), "start" and "end" for code in a file: the lines are read from disk, so cite only lines you have actually read, and make each note's "line" the real line number. Use "source" only for code that is in no file. At most 80 lines; a few precise notes beat many.
+```viz
+{"type":"code","title":"Why the retry loop can spin","path":"src/queue/worker.ts","start":40,"end":52,"notes":[{"line":44,"text":"the error is swallowed here, so the loop never sees it"},{"line":49,"text":"no backoff: retries run back to back"}]}
+```

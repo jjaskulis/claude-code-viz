@@ -39,7 +39,24 @@ export type Chart = {
   spec: Record<string, unknown>
 }
 
-export type Viz = Compare | Timeline | Tree | Graph | Chart
+// code: a snippet with numbered callouts pinned to its lines. Given `path`
+// and `start` (and `end`), the lines are read from disk, so what shows is
+// the file itself; `source` is for code that is in no file.
+export type Snippet = {
+  type: 'code'
+  title?: string
+  path?: string
+  start?: number
+  end?: number
+  source?: string
+  language?: string
+  notes?: { line: number; text: string }[]
+}
+
+export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet
+
+// The most lines a code block shows, read from disk or given inline.
+export const SNIPPET_MAX_LINES = 80
 
 export type Segment =
   | { kind: 'markdown'; text: string }
@@ -152,6 +169,24 @@ export const check = (data: unknown): string | undefined => {
     if (!views.some(view => view in (data.spec as object))) return 'chart spec needs a mark (or layer, concat, facet, repeat)'
     // The renderer must not fetch anything: data rides in the spec.
     if (hasKey(data.spec, 'url')) return 'chart data must be inline ("data": {"values": [...]}), not a url'
+    return undefined
+  }
+
+  if (data.type === 'code') {
+    const isLine = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1
+    const hasSource = typeof data.source === 'string'
+    const hasFile = typeof data.path === 'string' && isLine(data.start)
+    if (!hasSource && !hasFile) return 'code needs "path" and "start" (lines read from the file), or "source"'
+    if (data.end !== undefined && !(isLine(data.end) && isLine(data.start) && data.end >= data.start)) {
+      return 'code "end" must be a line number at or after "start"'
+    }
+    if (hasFile && isLine(data.end) && data.end - (data.start as number) + 1 > SNIPPET_MAX_LINES) {
+      return `code shows at most ${SNIPPET_MAX_LINES} lines`
+    }
+    const isNote = (n: unknown) => isObject(n) && isLine(n.line) && typeof n.text === 'string'
+    if (data.notes !== undefined && !(Array.isArray(data.notes) && data.notes.every(isNote))) {
+      return 'each code note needs a "line" number and a "text"'
+    }
     return undefined
   }
 

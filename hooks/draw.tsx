@@ -4,31 +4,35 @@
 
 import type { ElementTable, RenderElement } from 'claude-code'
 
-import type { Rendered } from './graph'
+import type { Loaded, Rendered } from './graph'
 import { nest } from './parse'
-import type { Chart, Compare, Graph, Node, Segment, Status, Timeline, Tree } from './parse'
+import type { Chart, Compare, Graph, Node, Segment, Snippet, Status, Timeline, Tree } from './parse'
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Markdown' | 'Code'> & {
   Image?: ElementTable<'terminal'>['Image']
 }
 
-// How a graph or chart block's picture stands: rendering, ready or failed.
-export type GraphLookup = (block: Graph | Chart) => Rendered
+// What the render hook fetches for a block: a graph or chart's picture, a
+// code block's lines; each pending, ready or failed.
+export type Lookups = {
+  picture: (block: Graph | Chart) => Rendered
+  snippet: (block: Snippet) => Loaded
+}
 
 const ACCENT = 'cyan'
 const GOOD = 'green'
 
-export const drawSegments = (els: Els, segments: Segment[], columns: number, graph: GraphLookup): RenderElement => {
+export const drawSegments = (els: Els, segments: Segment[], columns: number, lookups: Lookups): RenderElement => {
   const { Box } = els
 
   return (
     <Box flexDirection="column" gap={1}>
-      {segments.map((s, i) => drawSegment(els, s, columns, graph, `seg:${i}`))}
+      {segments.map((s, i) => drawSegment(els, s, columns, lookups, `seg:${i}`))}
     </Box>
   )
 }
 
-const drawSegment = (els: Els, s: Segment, columns: number, graph: GraphLookup, key: string): RenderElement => {
+const drawSegment = (els: Els, s: Segment, columns: number, lookups: Lookups, key: string): RenderElement => {
   const { Box, Text, Markdown } = els
 
   if (s.kind === 'markdown') return <Markdown key={key} text={s.text} />
@@ -58,8 +62,10 @@ const drawSegment = (els: Els, s: Segment, columns: number, graph: GraphLookup, 
       : s.viz.type === 'timeline'
         ? drawTimeline(els, s.viz, inner)
         : s.viz.type === 'graph' || s.viz.type === 'chart'
-          ? drawPicture(els, s.viz, inner, graph(s.viz))
-          : drawTree(els, s.viz)
+          ? drawPicture(els, s.viz, inner, lookups.picture(s.viz))
+          : s.viz.type === 'code'
+            ? drawSnippet(els, s.viz, lookups.snippet(s.viz))
+            : drawTree(els, s.viz)
 
   return (
     <Box key={key} flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
@@ -372,6 +378,93 @@ const drawChartData = (els: Els, chart: Chart): RenderElement => {
         </Box>
       ))}
       {values.length > TABLE_ROWS && <Text dimColor>… {values.length - TABLE_ROWS} more rows</Text>}
+    </Box>
+  )
+}
+
+// ① to ⑳, then (21) and on.
+const mark = (n: number): string => (n >= 1 && n <= 20 ? String.fromCodePoint(0x245f + n) : `(${n})`)
+
+// code: the lines with the engine's highlighter, cut after each line a note
+// points at so the note sits right under it; numbering runs on across cuts.
+const drawSnippet = (els: Els, s: Snippet, loaded: Loaded): RenderElement => {
+  const { Box, Text, Code } = els
+  const where =
+    s.path !== undefined ? `${s.path}:${s.start ?? 1}${s.end !== undefined ? `–${s.end}` : ''}` : undefined
+
+  const header = where !== undefined && (
+    <Text dimColor>
+      {where}
+      {s.source === undefined ? '  (read from disk)' : ''}
+    </Text>
+  )
+
+  if (loaded.kind === 'pending') {
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text dimColor italic>
+          ◌ reading {s.path}…
+        </Text>
+      </Box>
+    )
+  }
+
+  if (loaded.kind === 'failed') {
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text color="red">code: {loaded.reason}</Text>
+      </Box>
+    )
+  }
+
+  const lines = loaded.text.split('\n')
+  const first = loaded.start
+  const last = first + lines.length - 1
+  const notes = (s.notes ?? []).map((note, i) => ({ ...note, n: i + 1 })).sort((a, b) => a.line - b.line)
+  const shown = notes.filter(note => note.line >= first && note.line <= last)
+  const outside = notes.filter(note => note.line < first || note.line > last)
+
+  const parts: RenderElement[] = []
+  let at = first
+  const code = (from: number, to: number) => (
+    <Code
+      source={lines.slice(from - first, to - first + 1).join('\n')}
+      startLine={from}
+      language={s.language}
+      path={s.path}
+    />
+  )
+
+  for (const line of [...new Set(shown.map(note => note.line))]) {
+    if (line >= at) parts.push(code(at, line))
+    at = Math.max(at, line + 1)
+    for (const note of shown.filter(n => n.line === line)) {
+      parts.push(
+        <Box paddingLeft={2}>
+          <Text>
+            <Text color={ACCENT} bold>
+              ↳ {mark(note.n)}{' '}
+            </Text>
+            <Text color={ACCENT}>{note.text}</Text>
+          </Text>
+        </Box>,
+      )
+    }
+  }
+  if (at <= last) parts.push(code(at, last))
+
+  return (
+    <Box flexDirection="column">
+      {header}
+      {parts}
+      {loaded.isCut && <Text dimColor>… cut at {lines.length} lines</Text>}
+      {outside.map(note => (
+        <Text dimColor>
+          {mark(note.n)} line {note.line} is outside the snippet: {note.text}
+        </Text>
+      ))}
     </Box>
   )
 }

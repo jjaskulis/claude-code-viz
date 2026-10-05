@@ -4,14 +4,44 @@ import type { Register } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import { drawSegments } from './draw'
-import { DOT_THEME_ARGS, RENDER_DIR, chartSpec, hash, pngSize } from './graph'
-import type { Rendered } from './graph'
+import { DOT_THEME_ARGS, RENDER_DIR, chartSpec, hash, pngSize, sliceLines } from './graph'
+import type { Loaded, Rendered } from './graph'
 import { holdViz } from './hold'
-import { hasViz, segment } from './parse'
-import type { Chart, Graph } from './parse'
+import { SNIPPET_MAX_LINES, hasViz, segment } from './parse'
+import type { Chart, Graph, Snippet } from './parse'
 import type { Drawing } from '../types'
 
 const drawing = atom({ plugin: 'viz', key: 'drawing' } as const, null as Drawing)
+
+// A code block's lines: inline source at once, a file's lines once read.
+// Read once per module life, so an edit after the reply does not move them.
+const snippets = new Map<string, Loaded>()
+
+const snippetOf = ($: EngineInterface, block: Snippet): Loaded => {
+  if (block.source !== undefined) {
+    return sliceLines(block.source, 1, undefined, SNIPPET_MAX_LINES)
+  }
+
+  const path = block.path ?? ''
+  const start = block.start ?? 1
+  const id = `${path}:${start}:${block.end ?? ''}`
+  const known = snippets.get(id)
+  if (known !== undefined) return known
+
+  snippets.set(id, { kind: 'pending' })
+  void $.fs
+    .read(path)
+    .then(
+      text => sliceLines(text, start, block.end, SNIPPET_MAX_LINES),
+      (error: unknown): Loaded => ({ kind: 'failed', reason: error instanceof Error ? error.message : String(error) }),
+    )
+    .then(loaded => {
+      snippets.set(id, loaded)
+      $.ui.invalidate('ui.render')
+    })
+
+  return { kind: 'pending' }
+}
 
 // Each distinct picture source is rendered once for the module's life; a
 // reload renders again, which is cheap.
@@ -121,6 +151,9 @@ export const register: Register = on => {
     // The row sits behind the reply's two-column bullet.
     const columns = (e.viewport?.columns ?? 80) - 2
 
-    return drawSegments($.ui.resolve(e), segment(e.props.text), columns, block => pictureOf($, block))
+    return drawSegments($.ui.resolve(e), segment(e.props.text), columns, {
+      picture: block => pictureOf($, block),
+      snippet: block => snippetOf($, block),
+    })
   })
 }

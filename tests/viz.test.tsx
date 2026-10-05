@@ -100,6 +100,44 @@ describe('viz blocks', () => {
     await ui.unmount()
   })
 
+  const snippet = {
+    type: 'code',
+    language: 'ts',
+    source: 'const a = 1\nconst b = a + 1\nexport { b }',
+    notes: [
+      { line: 2, text: 'b depends on a' },
+      { line: 9, text: 'nowhere near' },
+    ],
+  }
+
+  for (const surface of ['terminal', 'mobile'] as const) {
+    test(`a code block pins its notes under their lines on ${surface}`, async $ => {
+      const ui = await mount($, surface, fence(snippet))
+
+      const codes = await ui.findAll({ type: 'Code' })
+      expect(codes.length).toBe(2)
+      expect(codes[0]?.props.startLine).toBe(1)
+      expect(codes[1]?.props.startLine).toBe(3)
+      expect(await ui.find({ type: 'Text', text: /b depends on a/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /line 9 is outside the snippet/ })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test('a code block that cannot read its file says why', async $ => {
+    const ui = await mount($, 'terminal', fence({ type: 'code', path: 'no/such/file.ts', start: 1, end: 5 }))
+
+    expect(await ui.find({ type: 'Text', text: /no\/such\/file\.ts:1–5/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a code block without a file or source is refused', async $ => {
+    const ui = await mount($, 'terminal', fence({ type: 'code', path: 'a.ts' }))
+
+    expect(await ui.find({ type: 'Text', text: /needs "path" and "start"/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('a narrow terminal stacks the comparison', async $ => {
     const ui = await mount($, 'terminal', COMPARE, 40)
 
