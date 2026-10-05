@@ -107,6 +107,7 @@ const renderPicture = async (
 
     const { base64 } = await $.fs.read(png, { as: 'bytes' })
     const size = pngSize(base64)
+    if (size !== undefined) lastPicture = png
 
     // Sent inline: a file path leaves the terminal to open it itself.
     return size === undefined
@@ -215,7 +216,37 @@ const renderNote = async (
   }
 }
 
+// The picture rendered last, for /viz-open; after a reload, the newest
+// graph, chart or types picture on disk stands in.
+let lastPicture: string | undefined
+
+const latestPicture = async ($: EngineInterface): Promise<string | undefined> => {
+  if (lastPicture !== undefined) return lastPicture
+  const listed = await $.process.run(['ls', '-t', RENDER_DIR])
+  const newest = listed.stdout.split('\n').find(name => /^(graph|chart)-[0-9a-f]+\.png$/.test(name))
+  return newest !== undefined ? `${RENDER_DIR}/${newest}` : undefined
+}
+
 export const register: Register = on => {
+  // /viz-open: the latest picture full size in Preview, to zoom and pan.
+  on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: 'viz-open',
+      description: 'Open the latest viz diagram or chart full size in Preview',
+    })
+    return next(e)
+  })
+
+  on('command.run', { command: 'viz-open' }, async $ => {
+    const picture = await latestPicture($)
+    if (picture === undefined) return { text: 'No viz diagram or chart has been drawn yet.' }
+
+    const opened = await $.process.run(['open', '-a', 'Preview', picture])
+    return {
+      text: opened.exitCode === 0 ? `Opened ${picture} in Preview.` : `Could not open ${picture}: ${opened.stderr.trim()}`,
+    }
+  })
+
   // The live stream is drawn by the engine, not by ui.render, so a block is
   // held back until it is whole rather than shown as raw JSON.
   on('turn.step', async function* ($, e, next) {

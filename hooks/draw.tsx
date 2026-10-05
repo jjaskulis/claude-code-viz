@@ -310,7 +310,7 @@ const drawTree = (els: Els, t: Tree): RenderElement => {
 // spans about 14 pixels of the picture.
 const CELL_ASPECT = 0.5
 const PIXELS_PER_COLUMN = 14
-const MAX_ROWS = 40
+const MAX_ROWS = 60
 
 // graph and chart: the rendered picture, sized to its own aspect within the
 // room; where there is no picture, what the block holds as text.
