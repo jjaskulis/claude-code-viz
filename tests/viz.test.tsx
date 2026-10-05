@@ -138,6 +138,35 @@ describe('viz blocks', () => {
     await ui.unmount()
   })
 
+  const trace = {
+    type: 'trace',
+    title: 'Saving an order',
+    steps: [
+      { at: 'src/api/orders.ts:14', what: 'route handler validates the body' },
+      { at: 'src/orders/service.ts:31', what: 'service prices the order', depth: 1 },
+      { at: 'src/db/orders.ts:8', what: 'row is inserted', kind: 'effect', depth: 2 },
+      { at: 'src/api/orders.ts:22', what: 'responds 201', kind: 'return' },
+    ],
+  }
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    test(`a trace draws its steps with places and kinds on ${surface}`, async $ => {
+      const ui = await mount($, surface, fence(trace))
+
+      expect(await ui.find({ type: 'Text', text: /service prices the order/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'src/db/orders.ts:8' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /\(effect\)/ })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test('a trace step without a path:line place is refused', async $ => {
+    const ui = await mount($, 'terminal', fence({ type: 'trace', steps: [{ at: 'somewhere', what: 'x' }] }))
+
+    expect(await ui.find({ type: 'Text', text: /"at" as path:line/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('a narrow terminal stacks the comparison', async $ => {
     const ui = await mount($, 'terminal', COMPARE, 40)
 

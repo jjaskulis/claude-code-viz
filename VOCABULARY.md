@@ -33,3 +33,8 @@ code: explain code by pinning numbered notes to its lines. Give "path" (relative
 ```viz
 {"type":"code","title":"Why the retry loop can spin","path":"src/queue/worker.ts","start":40,"end":52,"notes":[{"line":44,"text":"the error is swallowed here, so the loop never sees it"},{"line":49,"text":"no backoff: retries run back to back"}]}
 ```
+
+trace: what actually happens when something runs, as an ordered path. Each step has "at" (path:line of where it happens), "what" (one short line), optional "kind" (call, async, effect for side effects such as writes and network calls, return) and "depth" (0 for the entry, +1 per nested call). "show": 1 to 8 reads that many lines from disk at the step, for the few steps where the line itself matters. Cite only places you have actually read.
+```viz
+{"type":"trace","title":"Saving an order","steps":[{"at":"src/api/orders.ts:14","what":"handler validates the body"},{"at":"src/orders/service.ts:31","what":"service prices the order","depth":1},{"at":"src/db/orders.ts:8","what":"row is inserted","kind":"effect","depth":2,"show":2},{"at":"src/api/orders.ts:22","what":"responds 201","kind":"return"}]}
+```

@@ -6,8 +6,8 @@ import type { ElementTable, RenderElement } from 'claude-code'
 
 import { CELL_PX, NOTE } from './graph'
 import type { Loaded, Rendered } from './graph'
-import { nest } from './parse'
-import type { Chart, Compare, Graph, Node, Segment, Snippet, Status, Timeline, Tree } from './parse'
+import { nest, parseAt } from './parse'
+import type { Chart, Compare, Graph, Node, Segment, Snippet, Status, Timeline, Trace, TraceKind, Tree } from './parse'
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Markdown' | 'Code'> & {
   Image?: ElementTable<'terminal'>['Image']
@@ -67,7 +67,9 @@ const drawSegment = (els: Els, s: Segment, columns: number, lookups: Lookups, ke
           ? drawPicture(els, s.viz, inner, lookups.picture(s.viz))
           : s.viz.type === 'code'
             ? drawSnippet(els, s.viz, lookups.snippet(s.viz), inner, lookups.note)
-            : drawTree(els, s.viz)
+            : s.viz.type === 'trace'
+              ? drawTrace(els, s.viz, lookups.snippet)
+              : drawTree(els, s.viz)
 
   return (
     <Box key={key} flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
@@ -505,6 +507,60 @@ const drawSnippet = (
           {mark(note.n)} line {note.line} is outside the snippet: {note.text}
         </Text>
       ))}
+    </Box>
+  )
+}
+
+const STEP: Record<TraceKind, { mark: string; color: string; label?: string }> = {
+  call: { mark: '●', color: ACCENT },
+  async: { mark: '◌', color: ACCENT, label: 'async' },
+  effect: { mark: '◆', color: NOTE.color, label: 'effect' },
+  return: { mark: '↩', color: 'gray' },
+}
+
+// trace: the steps on a rail, nested calls indented by depth; what happens
+// bright, where dim beneath it, and a step's own lines from disk if asked.
+const drawTrace = (els: Els, t: Trace, snippet: Lookups['snippet']): RenderElement => {
+  const { Box, Text, Code } = els
+
+  return (
+    <Box flexDirection="column">
+      {t.steps.map((step, i) => {
+        const kind = STEP[step.kind ?? 'call']
+        const depth = Math.min(step.depth ?? 0, 6)
+        const rail = '│ '.repeat(depth)
+        const isLast = i === t.steps.length - 1
+        const place = parseAt(step.at)
+        const shown =
+          place !== undefined && (step.show ?? 0) > 0
+            ? snippet({ type: 'code', path: place.path, start: place.line, end: place.line + (step.show ?? 1) - 1 })
+            : undefined
+
+        return (
+          <Box flexDirection="column">
+            <Box flexDirection="row">
+              <Text dimColor>{rail}</Text>
+              <Box width={2}>
+                <Text color={kind.color} bold>
+                  {kind.mark}
+                </Text>
+              </Box>
+              <Box flexDirection="column" flexShrink={1}>
+                <Text bold={step.kind === 'effect'} color={step.kind === 'effect' ? NOTE.color : undefined}>
+                  {step.what}
+                  {kind.label !== undefined && <Text dimColor> ({kind.label})</Text>}
+                </Text>
+                <Text dimColor>{step.at}</Text>
+                {shown?.kind === 'ready' && (
+                  <Code source={shown.text} startLine={shown.start} path={place?.path} wrap="truncate-end" />
+                )}
+                {shown?.kind === 'failed' && <Text color="red">{shown.reason}</Text>}
+              </Box>
+            </Box>
+            {!isLast && <Text dimColor>{rail}│</Text>}
+          </Box>
+        )
+      })}
     </Box>
   )
 }

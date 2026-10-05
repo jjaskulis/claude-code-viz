@@ -53,7 +53,28 @@ export type Snippet = {
   notes?: { line: number; text: string }[]
 }
 
-export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet
+// trace: an execution path, step by step: where (`file:line`), what happens
+// there, what kind of step it is, how deep in the calls, and optionally a
+// few of its lines read from disk.
+export type TraceKind = 'call' | 'async' | 'effect' | 'return'
+
+export type Trace = {
+  type: 'trace'
+  title?: string
+  steps: { at: string; what: string; kind?: TraceKind; depth?: number; show?: number }[]
+}
+
+export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet | Trace
+
+// `path:line` as a trace step names its place; undefined when it does not.
+export const parseAt = (at: string): { path: string; line: number } | undefined => {
+  const match = /^(.+):(\d+)$/.exec(at.trim())
+  const line = Number(match?.[2])
+  return match?.[1] !== undefined && line >= 1 ? { path: match[1], line } : undefined
+}
+
+// The most lines one trace step may show.
+export const TRACE_MAX_SHOW = 8
 
 // The most lines a code block shows, read from disk or given inline.
 export const SNIPPET_MAX_LINES = 80
@@ -186,6 +207,24 @@ export const check = (data: unknown): string | undefined => {
     const isNote = (n: unknown) => isObject(n) && isLine(n.line) && typeof n.text === 'string'
     if (data.notes !== undefined && !(Array.isArray(data.notes) && data.notes.every(isNote))) {
       return 'each code note needs a "line" number and a "text"'
+    }
+    return undefined
+  }
+
+  if (data.type === 'trace') {
+    const kinds: readonly unknown[] = ['call', 'async', 'effect', 'return']
+    const isStep = (step: unknown) =>
+      isObject(step) &&
+      typeof step.at === 'string' &&
+      parseAt(step.at) !== undefined &&
+      typeof step.what === 'string' &&
+      (step.kind === undefined || kinds.includes(step.kind)) &&
+      (step.depth === undefined || (Number.isInteger(step.depth) && (step.depth as number) >= 0)) &&
+      (step.show === undefined ||
+        (Number.isInteger(step.show) && (step.show as number) >= 0 && (step.show as number) <= TRACE_MAX_SHOW))
+    if (!Array.isArray(data.steps) || data.steps.length === 0) return 'trace needs steps'
+    if (!data.steps.every(isStep)) {
+      return `each trace step needs "at" as path:line and "what"; kind is call, async, effect or return; show at most ${TRACE_MAX_SHOW}`
     }
     return undefined
   }
