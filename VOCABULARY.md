@@ -10,7 +10,7 @@ Shapes (`?` optional; every type also takes "title"):
 - trace: {"type":"trace","steps":[{"at":"path:line","what","fn"?:enclosing function,"kind"?:call|async|effect|return,"depth"?:call depth from 0,"show"?:1-8 lines from disk,"phase"?:label where time jumps, depth restarting}]}
 - graph: {"type":"graph","dot":"digraph {...}"}; at most about 12 nodes, rankdir=LR for flows, nesting (package, file, function) as subgraph cluster_x { label="..." }, with two or three sentences of prose
 - sequence: {"type":"sequence","participants":[...],"messages":[{"from","to","text","kind"?:call|reply|async}]}; a few participants, short message texts
-- schema: {"type":"schema","entities":[{"name","fields":[{"name","type"?,"key"?:pk|fk}],"note"?}],"relations"?:[{"from":"entity.field","to":"entity.field","kind"?:many-to-one|one-to-one|many-to-many,"label"?}]}; a relation reads from the many side
+- types: {"type":"types","shapes":[{"name","kind"?:interface|type|class|enum|table,"fields":[{"name","type"?,"key"?:pk|fk}],"note"?}],"links"?:[{"from":"Shape.field","to":"Shape or Shape.field","kind"?:ref|many-to-one|one-to-one|many-to-many,"label"?}]}; how types (or tables) are shaped and refer to each other
 - chart: {"type":"chart","spec":{Vega-Lite with "data":{"values":[...]}}}; only numbers from the conversation, data inline; log-scale bars need "x2":{"datum":1} and a matching "domainMin"
 
 Example:

@@ -225,28 +225,28 @@ describe('viz blocks', () => {
     await ui.unmount()
   })
 
-  const schema = {
-    type: 'schema',
-    entities: [
-      { name: 'users', fields: [{ name: 'id', type: 'uuid', key: 'pk' }, { name: 'email' }] },
-      { name: 'orders', fields: [{ name: 'id', key: 'pk' }, { name: 'user_id', key: 'fk' }] },
+  const types = {
+    type: 'types',
+    shapes: [
+      { name: 'EditParams', kind: 'interface', fields: [{ name: 'pages', type: 'Page[]' }, { name: 'codegen?', type: 'CodegenParams' }] },
+      { name: 'CodegenParams', kind: 'type', fields: [{ name: 'resources', type: 'Resources' }] },
     ],
-    relations: [{ from: 'orders.user_id', to: 'users.id', label: 'placed by' }],
+    links: [{ from: 'EditParams.codegen?', to: 'CodegenParams', label: 'optional' }],
   }
 
-  test('a schema lists its entities where the surface has no Image', async $ => {
-    const ui = await mount($, 'desktop', fence(schema))
+  test('types lists its shapes where the surface has no Image', async $ => {
+    const ui = await mount($, 'desktop', fence(types))
 
-    expect(await ui.find({ type: 'Text', text: 'users' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /orders\.user_id → users\.id: placed by/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'EditParams' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /EditParams\.codegen\? → CodegenParams: optional/ })).toBeDefined()
     await ui.unmount()
   })
 
-  test('a schema relation to an unknown field is refused', async $ => {
-    const bad = { ...schema, relations: [{ from: 'orders.user', to: 'users.id' }] }
+  test('a types link to an unknown field is refused', async $ => {
+    const bad = { ...types, links: [{ from: 'EditParams.nope', to: 'CodegenParams' }] }
     const ui = await mount($, 'terminal', fence(bad))
 
-    expect(await ui.find({ type: 'Text', text: /naming an entity or entity\.field/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /naming a shape or Shape\.field/ })).toBeDefined()
     await ui.unmount()
   })
 

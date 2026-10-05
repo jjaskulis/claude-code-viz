@@ -84,19 +84,19 @@ export type Sequence = {
   messages: { from: string; to: string; text: string; kind?: SequenceKind }[]
 }
 
-// schema: entities with their fields, and relations between fields
-// ("orders.user_id" to "users.id"). A relation reads from the many side to
-// the one side unless its kind says otherwise.
-export type Relation = 'many-to-one' | 'one-to-one' | 'many-to-many'
+// types: shapes (interfaces, types, classes, tables) with their fields, and
+// links from a field to the shape or field it refers to. A link is a plain
+// "refers to" arrow; the database kinds draw crow's feet for many.
+export type LinkKind = 'ref' | 'many-to-one' | 'one-to-one' | 'many-to-many'
 
-export type Schema = {
-  type: 'schema'
+export type Types = {
+  type: 'types'
   title?: string
-  entities: { name: string; fields: { name: string; type?: string; key?: 'pk' | 'fk' }[]; note?: string }[]
-  relations?: { from: string; to: string; kind?: Relation; label?: string }[]
+  shapes: { name: string; kind?: string; fields: { name: string; type?: string; key?: 'pk' | 'fk' }[]; note?: string }[]
+  links?: { from: string; to: string; kind?: LinkKind; label?: string }[]
 }
 
-export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet | Trace | Sequence | Schema
+export type Viz = Compare | Timeline | Tree | Graph | Chart | Snippet | Trace | Sequence | Types
 
 // `path:line` as a trace step names its place; undefined when it does not.
 export const parseAt = (at: string): { path: string; line: number } | undefined => {
@@ -278,21 +278,32 @@ export const check = (data: unknown): string | undefined => {
     return undefined
   }
 
-  if (data.type === 'schema') {
+  if (data.type === 'types') {
     const isField = (f: unknown) =>
-      isObject(f) && typeof f.name === 'string' && (f.type === undefined || typeof f.type === 'string') && (f.key === undefined || f.key === 'pk' || f.key === 'fk')
-    const isEntity = (e: unknown) => isObject(e) && typeof e.name === 'string' && Array.isArray(e.fields) && e.fields.every(isField)
-    if (!Array.isArray(data.entities) || data.entities.length === 0 || !data.entities.every(isEntity)) {
-      return 'schema needs entities, each with a "name" and "fields" ({"name", "type"?, "key"?: pk or fk})'
+      isObject(f) &&
+      typeof f.name === 'string' &&
+      (f.type === undefined || typeof f.type === 'string') &&
+      (f.key === undefined || f.key === 'pk' || f.key === 'fk')
+    const isShape = (sh: unknown) =>
+      isObject(sh) &&
+      typeof sh.name === 'string' &&
+      (sh.kind === undefined || typeof sh.kind === 'string') &&
+      Array.isArray(sh.fields) &&
+      sh.fields.every(isField)
+    if (!Array.isArray(data.shapes) || data.shapes.length === 0 || !data.shapes.every(isShape)) {
+      return 'types needs shapes, each with a "name" and "fields" ({"name", "type"?})'
     }
-    const fields = new Set(
-      (data.entities as { name: string; fields: { name: string }[] }[]).flatMap(e => [e.name, ...e.fields.map(f => `${e.name}.${f.name}`)]),
+    const names = new Set(
+      (data.shapes as { name: string; fields: { name: string }[] }[]).flatMap(sh => [
+        sh.name,
+        ...sh.fields.map(f => `${sh.name}.${f.name}`),
+      ]),
     )
-    const kinds: readonly unknown[] = ['many-to-one', 'one-to-one', 'many-to-many']
-    const isRelation = (r: unknown) =>
-      isObject(r) && fields.has(String(r.from)) && fields.has(String(r.to)) && (r.kind === undefined || kinds.includes(r.kind))
-    if (data.relations !== undefined && !(Array.isArray(data.relations) && data.relations.every(isRelation))) {
-      return 'each relation needs "from" and "to" naming an entity or entity.field; kind is many-to-one, one-to-one or many-to-many'
+    const kinds: readonly unknown[] = ['ref', 'many-to-one', 'one-to-one', 'many-to-many']
+    const isLink = (l: unknown) =>
+      isObject(l) && names.has(String(l.from)) && names.has(String(l.to)) && (l.kind === undefined || kinds.includes(l.kind))
+    if (data.links !== undefined && !(Array.isArray(data.links) && data.links.every(isLink))) {
+      return 'each link needs "from" and "to" naming a shape or Shape.field; kind is ref, many-to-one, one-to-one or many-to-many'
     }
     return undefined
   }

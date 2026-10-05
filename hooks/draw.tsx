@@ -4,7 +4,7 @@
 
 import type { ElementTable, RenderElement } from 'claude-code'
 
-import { CELL_PX, NOTE, schemaToDot } from './graph'
+import { CELL_PX, NOTE, typesToDot } from './graph'
 import type { Loaded, Rendered } from './graph'
 import { nest, parseAt } from './parse'
 import type {
@@ -12,7 +12,6 @@ import type {
   Compare,
   Graph,
   Node,
-  Schema,
   Segment,
   Sequence,
   SequenceKind,
@@ -22,6 +21,7 @@ import type {
   Trace,
   TraceKind,
   Tree,
+  Types,
 } from './parse'
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Markdown' | 'Code'> & {
@@ -86,8 +86,8 @@ const drawSegment = (els: Els, s: Segment, columns: number, lookups: Lookups, ke
               ? drawTrace(els, s.viz, inner, lookups.snippet)
               : s.viz.type === 'sequence'
                 ? drawSequence(els, s.viz, inner)
-                : s.viz.type === 'schema'
-                  ? drawSchema(els, s.viz, inner, lookups.picture)
+                : s.viz.type === 'types'
+                  ? drawTypes(els, s.viz, inner, lookups.picture)
                   : drawTree(els, s.viz)
 
   return (
@@ -713,18 +713,20 @@ const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet'
   )
 }
 
-// schema: tables linked field to field, laid out by Graphviz from the block
-// (no dot written by the model); without a picture, entities as text.
-const drawSchema = (els: Els, s: Schema, width: number, picture: Lookups['picture']): RenderElement => {
+// types: shapes as tables, arrows from a field to what it refers to, laid
+// out by Graphviz from the block (no dot written by the model); without a
+// picture, the shapes and links as text.
+const drawTypes = (els: Els, t: Types, width: number, picture: Lookups['picture']): RenderElement => {
   const { Box, Text } = els
-  const graph: Graph = { type: 'graph', title: s.title, dot: schemaToDot(s) }
+  const graph: Graph = { type: 'graph', title: t.title, dot: typesToDot(t) }
   const asText = (
     <Box flexDirection="column">
-      {s.entities.map(entity => (
+      {t.shapes.map(shape => (
         <Text>
-          <Text bold>{entity.name}</Text>
+          <Text bold>{shape.name}</Text>
+          {shape.kind !== undefined && <Text dimColor> {shape.kind}</Text>}
           <Text dimColor>: </Text>
-          {entity.fields.map((field, i) => (
+          {shape.fields.map((field, i) => (
             <Text>
               {i > 0 ? ', ' : ''}
               {field.key !== undefined && <Text color={NOTE.color}>{field.key.toUpperCase()} </Text>}
@@ -734,11 +736,11 @@ const drawSchema = (els: Els, s: Schema, width: number, picture: Lookups['pictur
           ))}
         </Text>
       ))}
-      {(s.relations ?? []).map(relation => (
+      {(t.links ?? []).map(link => (
         <Text dimColor>
-          {relation.from} → {relation.to}
-          {relation.kind !== undefined ? ` (${relation.kind})` : ''}
-          {relation.label !== undefined ? `: ${relation.label}` : ''}
+          {link.from} → {link.to}
+          {link.kind !== undefined && link.kind !== 'ref' ? ` (${link.kind})` : ''}
+          {link.label !== undefined ? `: ${link.label}` : ''}
         </Text>
       ))}
     </Box>
