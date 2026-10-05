@@ -143,7 +143,7 @@ describe('viz blocks', () => {
     title: 'Saving an order',
     steps: [
       { at: 'src/api/orders.ts:14', what: 'route handler validates the body' },
-      { at: 'src/orders/service.ts:31', what: 'service prices the order', depth: 1 },
+      { at: 'src/orders/service.ts:31', what: 'service prices the order', fn: 'priceOrder', depth: 1 },
       { at: 'src/db/orders.ts:8', what: 'row is inserted', kind: 'effect', depth: 2 },
       { at: 'src/api/orders.ts:22', what: 'responds 201', kind: 'return' },
     ],
@@ -157,6 +157,7 @@ describe('viz blocks', () => {
       expect(await ui.find({ type: 'Text', text: 'in src/' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: 'db/orders.ts:8' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /side effect/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'priceOrder' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: '   └─ ' })).toBeDefined()
       await ui.unmount()
     })

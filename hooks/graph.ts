@@ -17,12 +17,17 @@ export const THEME = {
   text: '#c4c4c4',
   muted: '#9e9e9e',
   grid: '#3a3a3a',
+  frame: '#5a5a5a',
   font: 'Helvetica',
 } as const
 
 // Graphviz defaults for the theme; a graph's own attributes still win.
+// `color` and `style` are what a cluster's frame takes: what lives inside
+// what (package, file, function) is drawn as rounded grey frames.
 export const DOT_THEME_ARGS = [
   '-Gbgcolor=transparent',
+  `-Gcolor=${THEME.frame}`,
+  '-Gstyle=rounded',
   `-Gfontcolor=${THEME.text}`,
   `-Gfontname=${THEME.font}`,
   `-Ncolor=${THEME.muted}`,

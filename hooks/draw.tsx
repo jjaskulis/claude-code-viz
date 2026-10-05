@@ -579,7 +579,8 @@ const treeGuides = (depths: number[], phaseStarts: boolean[]): { branch: string;
 }
 
 // trace: one line per step: its number, call-tree guides, its kind, what
-// happens, and where (the folder all steps share said once, above). A phase
+// happens, and where: the function, then the place (the folder all steps
+// share said once, above). A phase
 // heading marks a new stretch of time; a step's own lines from disk sit
 // under it, dedented, behind a thin bar; a key names the marks in use.
 const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet']): RenderElement => {
@@ -618,6 +619,15 @@ const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet'
         const place = places[i]
         const guide = guides[i] ?? { branch: '', under: '' }
         const where = place !== undefined ? `${short(place.path)}:${place.line}` : step.at
+        const placeText = (
+          <Text>
+            {step.fn !== undefined && <Text color={ACCENT}>{step.fn}</Text>}
+            <Text dimColor>
+              {step.fn !== undefined ? ' · ' : ''}
+              {where}
+            </Text>
+          </Text>
+        )
         const shown =
           place !== undefined && (step.show ?? 0) > 0
             ? snippet({ type: 'code', path: place.path, start: place.line, end: place.line + (step.show ?? 1) - 1 })
@@ -646,11 +656,11 @@ const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet'
                 <Text bold={step.kind === 'effect'} color={step.kind === 'effect' ? NOTE.color : undefined}>
                   {step.what}
                 </Text>
-                {!isSideBySide && <Text dimColor>{where}</Text>}
+                {!isSideBySide && placeText}
               </Box>
               {isSideBySide && (
                 <Box flexShrink={0} marginLeft={2}>
-                  <Text dimColor>{where}</Text>
+                  {placeText}
                 </Box>
               )}
             </Box>

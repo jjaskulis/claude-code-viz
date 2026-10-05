@@ -23,13 +23,13 @@ answers are kept here.
 | # | Kind | Blocks used | A was | Rating A | Rating B | Faster | Check right? | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | explain a function | code (5 notes) | plain | 1 | 4 | B (viz) | no, but the question was unclear (its scenario lived in code outside the codebase) | plain: "I need to really concentrate trying to read that" |
-| 2 | follow a flow | trace (15 steps, 2 phases) | plain | not rated ("really hard to parse") | 3-4 | B (viz) | yes | viz helps through less text, a visible shape of the process, and file names; asked for function or class names per step |
+| 2 | follow a flow | trace (15 steps, 2 phases) | plain | 1 ("really hard to parse") | 3-4 | B (viz) | yes | viz helps through less text, a visible shape of the process, and file names; asked for function or class names per step |
 | 3 | relate parts | graph (9 nodes) + tree | plain | 2 | 3 | B (viz), narrowly | partly (got where parts register, missed what hides them per run) | the plain version's explanation helped; the diagram showed the shape but not containment (a helper drawn as a separate box though it is defined inside the factory next to it) |
 | 4 | choose an option | compare + code (2 notes) | viz | 4 | 2 | A (viz) | yes | |
 
 #### What it says
 
-- The visual version was preferred on all four: ratings 4, 3-4, 3, 4 against 1, unrated ("really hard to parse"), 2, 2 for plain.
+- The visual version was preferred on all four: ratings 4, 3-4, 3, 4 against 1, 1, 2, 2 for plain (averages about 3.6 and 1.5).
 - What helped, in the reader's words: less text, a structure that shows the shape of the process, and file names showing where things happen.
 - `code` with pinned notes and `compare` scored highest (4). The relation diagram scored lowest (3): it showed the flow between parts but not what is nested in what, and a few sentences of prose carried insight the diagram did not.
 - Check questions: 2 right, 1 partly, 1 wrong (an unclear question). With both versions read, they show the reader took the answer in, not which version did it.
