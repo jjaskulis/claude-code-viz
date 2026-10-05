@@ -68,7 +68,7 @@ const drawSegment = (els: Els, s: Segment, columns: number, lookups: Lookups, ke
           : s.viz.type === 'code'
             ? drawSnippet(els, s.viz, lookups.snippet(s.viz), inner, lookups.note)
             : s.viz.type === 'trace'
-              ? drawTrace(els, s.viz, lookups.snippet)
+              ? drawTrace(els, s.viz, inner, lookups.snippet)
               : drawTree(els, s.viz)
 
   return (
@@ -518,46 +518,91 @@ const STEP: Record<TraceKind, { mark: string; color: string; label?: string }> =
   return: { mark: '↩', color: 'gray' },
 }
 
-// trace: the steps on a rail, nested calls indented by depth; what happens
-// bright, where dim beneath it, and a step's own lines from disk if asked.
-const drawTrace = (els: Els, t: Trace, snippet: Lookups['snippet']): RenderElement => {
+// Below this many columns a step's place goes under its text, not beside it.
+const TRACE_SIDE_BY_SIDE = 72
+const TRACE_INDENT = 3
+
+// The folder every path shares, as whole segments ("" when none).
+const sharedFolder = (paths: string[]): string => {
+  const split = paths.map(path => path.split('/').slice(0, -1))
+  const first = split[0] ?? []
+  let n = 0
+  while (n < first.length && split.every(parts => parts[n] === first[n])) n += 1
+  return first.slice(0, n).join('/')
+}
+
+// trace: one line per step: its number, an indent per call depth, its kind,
+// what happens, and where (the folder all steps share said once, above).
+// A step's own lines from disk sit under it behind a thin bar.
+const drawTrace = (els: Els, t: Trace, width: number, snippet: Lookups['snippet']): RenderElement => {
   const { Box, Text, Code } = els
+  const places = t.steps.map(step => parseAt(step.at))
+  const folder = sharedFolder(places.flatMap(place => (place !== undefined ? [place.path] : [])))
+  const short = (path: string) => (folder !== '' ? path.slice(folder.length + 1) : path)
+  const isSideBySide = width >= TRACE_SIDE_BY_SIDE
+  const numberWidth = String(t.steps.length).length + 1
 
   return (
     <Box flexDirection="column">
+      {folder !== '' && (
+        <Box marginBottom={1}>
+          <Text dimColor>in {folder}/</Text>
+        </Box>
+      )}
       {t.steps.map((step, i) => {
         const kind = STEP[step.kind ?? 'call']
-        const depth = Math.min(step.depth ?? 0, 6)
-        const rail = '│ '.repeat(depth)
-        const isLast = i === t.steps.length - 1
-        const place = parseAt(step.at)
+        const place = places[i]
+        const where = place !== undefined ? `${short(place.path)}:${place.line}` : step.at
+        const indent = Math.min(step.depth ?? 0, 6) * TRACE_INDENT
         const shown =
           place !== undefined && (step.show ?? 0) > 0
             ? snippet({ type: 'code', path: place.path, start: place.line, end: place.line + (step.show ?? 1) - 1 })
             : undefined
+        const text = (
+          <Text bold={step.kind === 'effect'} color={step.kind === 'effect' ? NOTE.color : undefined}>
+            {step.what}
+            {kind.label !== undefined && <Text dimColor> · {kind.label}</Text>}
+          </Text>
+        )
 
         return (
           <Box flexDirection="column">
             <Box flexDirection="row">
-              <Text dimColor>{rail}</Text>
-              <Box width={2}>
+              <Box width={numberWidth} flexShrink={0}>
+                <Text dimColor>{i + 1}</Text>
+              </Box>
+              <Box width={indent} flexShrink={0} />
+              <Box width={2} flexShrink={0}>
                 <Text color={kind.color} bold>
                   {kind.mark}
                 </Text>
               </Box>
-              <Box flexDirection="column" flexShrink={1}>
-                <Text bold={step.kind === 'effect'} color={step.kind === 'effect' ? NOTE.color : undefined}>
-                  {step.what}
-                  {kind.label !== undefined && <Text dimColor> ({kind.label})</Text>}
-                </Text>
-                <Text dimColor>{step.at}</Text>
-                {shown?.kind === 'ready' && (
-                  <Code source={shown.text} startLine={shown.start} path={place?.path} wrap="truncate-end" />
-                )}
-                {shown?.kind === 'failed' && <Text color="red">{shown.reason}</Text>}
+              <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+                {text}
+                {!isSideBySide && <Text dimColor>{where}</Text>}
               </Box>
+              {isSideBySide && (
+                <Box flexShrink={0} marginLeft={2}>
+                  <Text dimColor>{where}</Text>
+                </Box>
+              )}
             </Box>
-            {!isLast && <Text dimColor>{rail}│</Text>}
+            {shown !== undefined && (
+              <Box flexDirection="row" marginLeft={numberWidth + indent + 2}>
+                <Text dimColor>▏</Text>
+                {shown.kind === 'ready' ? (
+                  <Code source={shown.text} startLine={shown.start} path={place?.path} wrap="truncate-end" />
+                ) : shown.kind === 'failed' ? (
+                  <Text dimColor>
+                    couldn't read {place !== undefined ? short(place.path) : step.at}: {shown.reason.replace(/^.*failed: /, '')}
+                  </Text>
+                ) : (
+                  <Text dimColor italic>
+                    reading…
+                  </Text>
+                )}
+              </Box>
+            )}
           </Box>
         )
       })}

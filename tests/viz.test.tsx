@@ -154,8 +154,9 @@ describe('viz blocks', () => {
       const ui = await mount($, surface, fence(trace))
 
       expect(await ui.find({ type: 'Text', text: /service prices the order/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: 'src/db/orders.ts:8' })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /\(effect\)/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'in src/' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'db/orders.ts:8' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /· effect/ })).toBeDefined()
       await ui.unmount()
     })
   }
