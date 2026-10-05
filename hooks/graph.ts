@@ -222,7 +222,7 @@ export const typesToDot = (types: TypesInput): string => {
     return [`${from} -> ${to} [${LINK_ENDS[link.kind ?? 'ref']}${label}];`]
   })
 
-  // Top to bottom: type diagrams are many boxes over few levels, so a row
-  // of them runs far wider than a terminal and would be shrunk to fit.
-  return `digraph { rankdir=TB; node [shape=plain]; ${nodes.join(' ')} ${edges.join(' ')} }`
+  // Left to right reads best in place, though a wide one is shrunk to fit;
+  // /viz-open shows it full size.
+  return `digraph { rankdir=LR; node [shape=plain]; ${nodes.join(' ')} ${edges.join(' ')} }`
 }

@@ -311,6 +311,8 @@ const drawTree = (els: Els, t: Tree): RenderElement => {
 const CELL_ASPECT = 0.5
 const PIXELS_PER_COLUMN = 14
 const MAX_ROWS = 60
+// Below this share of its natural size, a picture says how to see it whole.
+const SHRUNK = 0.7
 
 // graph and chart: the rendered picture, sized to its own aspect within the
 // room; where there is no picture, what the block holds as text.
@@ -346,7 +348,8 @@ const drawPicture = (
   }
 
   const ratio = rendered.height / rendered.width
-  let columns = Math.max(10, Math.min(width, Math.ceil(rendered.width / PIXELS_PER_COLUMN)))
+  const natural = Math.ceil(rendered.width / PIXELS_PER_COLUMN)
+  let columns = Math.max(10, Math.min(width, natural))
   let rows = Math.max(1, Math.round(columns * ratio * CELL_ASPECT))
   if (rows > MAX_ROWS) {
     rows = MAX_ROWS
@@ -364,6 +367,11 @@ const drawPicture = (
       {rendered.warning !== undefined && (
         <Text dimColor>
           {block.type}: {rendered.warning}
+        </Text>
+      )}
+      {columns / natural < SHRUNK && (
+        <Text dimColor>
+          shrunk to {Math.round((columns / natural) * 100)}% · /viz-open to zoom
         </Text>
       )}
     </Box>
