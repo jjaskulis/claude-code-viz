@@ -18,7 +18,7 @@ type Els = Pick<ElementTable, 'Box' | 'Text' | 'Markdown' | 'Code'> & {
 export type Lookups = {
   picture: (block: Graph | Chart) => Rendered
   snippet: (block: Snippet) => Loaded
-  note: (text: string, columns: number) => Rendered
+  note: (n: number, text: string, columns: number) => Rendered
 }
 
 const ACCENT = 'cyan'
@@ -387,7 +387,9 @@ const drawChartData = (els: Els, chart: Chart): RenderElement => {
 // ① to ⑳, then (21) and on.
 const mark = (n: number): string => (n >= 1 && n <= 20 ? String.fromCodePoint(0x245f + n) : `(${n})`)
 
-// Where a note's marker ends and its text begins: "  ↳ ① ".
+// A note's indent under the code; where a text note's marker ends and its
+// text begins ("  ↳ ① ").
+const NOTE_LEFT = 2
 const NOTE_INDENT = 6
 const NOTE_TINT = '#2a2418'
 
@@ -403,25 +405,25 @@ const drawSnippet = (
   noteLookup: Lookups['note'],
 ): RenderElement => {
   const { Box, Text, Code, Image } = els
-  const noteColumns = Math.max(20, width - NOTE_INDENT)
+  const imageColumns = Math.max(20, width - NOTE_LEFT)
+  const textColumns = Math.max(20, width - NOTE_INDENT)
 
   const drawNote = (n: number, text: string): RenderElement => {
-    const rendered = Image !== undefined ? noteLookup(text, noteColumns) : undefined
-    const body =
-      Image !== undefined && rendered?.kind === 'ready' ? (
-        <Image
-          source={{ png: rendered.png }}
-          columns={noteColumns}
-          rows={rendered.height / CELL_PX.height}
-          alt={text}
-        />
-      ) : (
-        <Box width={noteColumns} backgroundColor={NOTE_TINT} paddingX={1}>
-          <Text italic color={NOTE.color}>
-            {text}
-          </Text>
+    const rendered = Image !== undefined ? noteLookup(n, text, imageColumns) : undefined
+
+    // The picture carries its own numbered badge.
+    if (Image !== undefined && rendered?.kind === 'ready') {
+      return (
+        <Box paddingLeft={NOTE_LEFT}>
+          <Image
+            source={{ png: rendered.png }}
+            columns={imageColumns}
+            rows={rendered.height / CELL_PX.height}
+            alt={`${n}. ${text}`}
+          />
         </Box>
       )
+    }
 
     return (
       <Box flexDirection="row">
@@ -430,7 +432,11 @@ const drawSnippet = (
             {'  '}↳ {mark(n)}
           </Text>
         </Box>
-        {body}
+        <Box width={textColumns} backgroundColor={NOTE_TINT} paddingX={1}>
+          <Text italic color={NOTE.color}>
+            {text}
+          </Text>
+        </Box>
       </Box>
     )
   }

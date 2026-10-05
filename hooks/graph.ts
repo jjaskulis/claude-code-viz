@@ -152,6 +152,14 @@ export const NOTE = {
   color: '#e5c07b',
   points: 32,
   interline: 6,
+  // The numbered badge before the text: its square, the slot it is
+  // centred in, and its digit.
+  badge: 40,
+  badgeSlot: 56,
+  badgeText: '#1c1c1c',
+  badgePoints: 26,
+  // One line of text at `points`, measured: the badge lines up with it.
+  lineHeight: 45,
 } as const
 
 // A terminal cell in picture pixels, as the 144 dpi pictures are drawn: a

@@ -117,15 +117,16 @@ const renderPicture = async (
   }
 }
 
-// A code-block note as a picture `columns` cells wide, rendered once per
-// text and width (a resize renders again, at the new width).
-const noteOf = ($: EngineInterface, text: string, columns: number): Rendered => {
-  const id = `note-${hash(text)}-${columns}`
+// Code-block note `n` as a picture `columns` cells wide: a numbered badge,
+// then the text. Rendered once per number, text and width (a resize renders
+// again, at the new width).
+const noteOf = ($: EngineInterface, n: number, text: string, columns: number): Rendered => {
+  const id = `note-${n}-${hash(text)}-${columns}`
   const known = pictures.get(id)
   if (known !== undefined) return known
 
   pictures.set(id, { kind: 'pending' })
-  void renderNote($, id, text, columns).then(rendered => {
+  void renderNote($, id, n, text, columns).then(rendered => {
     pictures.set(id, rendered)
     $.ui.invalidate('ui.render')
   })
@@ -133,10 +134,18 @@ const noteOf = ($: EngineInterface, text: string, columns: number): Rendered => 
   return { kind: 'pending' }
 }
 
-const renderNote = async ($: EngineInterface, id: string, text: string, columns: number): Promise<Rendered> => {
+const renderNote = async (
+  $: EngineInterface,
+  id: string,
+  n: number,
+  text: string,
+  columns: number,
+): Promise<Rendered> => {
   const txt = `${RENDER_DIR}/${id}.txt`
+  const textPng = `${RENDER_DIR}/${id}.text.png`
   const png = `${RENDER_DIR}/${id}.png`
   const width = columns * CELL_PX.width
+  const textWidth = width - NOTE.badgeSlot
 
   try {
     await $.process.run(['mkdir', '-p', RENDER_DIR])
@@ -149,27 +158,58 @@ const renderNote = async ($: EngineInterface, id: string, text: string, columns:
         '-font', NOTE.font,
         '-pointsize', String(NOTE.points),
         '-interline-spacing', String(NOTE.interline),
-        '-size', `${width}x`,
+        '-size', `${textWidth}x`,
         `caption:@${txt}`,
-        png,
+        textPng,
       ],
       { timeoutMs: 15_000 },
     )
     if (drawn.exitCode !== 0) return failure('magick', drawn)
 
-    const size = pngSize((await $.fs.read(png, { as: 'bytes' })).base64)
+    const size = pngSize((await $.fs.read(textPng, { as: 'bytes' })).base64)
     if (size === undefined) return { kind: 'failed', reason: 'magick wrote no PNG' }
 
-    // Pad to whole rows so the Image box holds the text unstretched.
-    const rows = Math.max(1, Math.ceil(size.height / CELL_PX.height))
-    const padded = await $.process.run(
-      ['magick', png, '-background', 'none', '-gravity', 'northwest', '-extent', `${width}x${rows * CELL_PX.height}`, png],
+    // Whole rows, so the Image box holds the note unstretched; the badge
+    // and the text are centred in them. `n` is the mod's own count, so it
+    // is safe on the command line where the model's text is not.
+    const height = Math.max(1, Math.ceil(size.height / CELL_PX.height)) * CELL_PX.height
+    const b = NOTE.badge
+    // The text is centred in its rows; the badge sits beside its first line.
+    const textTop = Math.floor((height - size.height) / 2)
+    const badgeLeft = Math.floor((NOTE.badgeSlot - b) / 2)
+    const badgeTop = Math.max(0, textTop + Math.floor((NOTE.lineHeight - b) / 2))
+    const joined = await $.process.run(
+      [
+        'magick',
+        '(',
+        '-size', `${b}x${b}`, 'xc:none',
+        '-fill', NOTE.color,
+        '-draw', `roundrectangle 0,0 ${b - 1},${b - 1} 10,10`,
+        '-fill', NOTE.badgeText,
+        '-font', NOTE.font,
+        '-pointsize', String(NOTE.badgePoints),
+        '-gravity', 'center',
+        '-annotate', '+0+0', String(n),
+        '-background', 'none',
+        '-gravity', 'northwest',
+        '-extent', `${NOTE.badgeSlot}x${height}-${badgeLeft}-${badgeTop}`,
+        ')',
+        '(',
+        textPng,
+        '-background', 'none',
+        '-gravity', 'west',
+        '-extent', `${textWidth}x${height}`,
+        ')',
+        '+append',
+        '+repage',
+        png,
+      ],
       { timeoutMs: 15_000 },
     )
-    if (padded.exitCode !== 0) return failure('magick', padded)
+    if (joined.exitCode !== 0) return failure('magick', joined)
 
     const { base64 } = await $.fs.read(png, { as: 'bytes' })
-    return { kind: 'ready', png: base64, width, height: rows * CELL_PX.height }
+    return { kind: 'ready', png: base64, width, height }
   } catch (error) {
     return { kind: 'failed', reason: error instanceof Error ? error.message : String(error) }
   }
@@ -212,7 +252,7 @@ export const register: Register = on => {
     return drawSegments($.ui.resolve(e), segment(e.props.text), columns, {
       picture: block => pictureOf($, block),
       snippet: block => snippetOf($, block),
-      note: (text, width) => noteOf($, text, width),
+      note: (n, text, width) => noteOf($, n, text, width),
     })
   })
 }
