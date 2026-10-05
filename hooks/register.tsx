@@ -4,7 +4,7 @@ import type { Register } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import { drawSegments } from './draw'
-import { DOT_THEME_ARGS, RENDER_DIR, chartSpec, hash, pngSize, sliceLines } from './graph'
+import { CELL_PX, DOT_THEME_ARGS, NOTE, RENDER_DIR, chartSpec, hash, pngSize, sliceLines } from './graph'
 import type { Loaded, Rendered } from './graph'
 import { holdViz } from './hold'
 import { SNIPPET_MAX_LINES, hasViz, segment } from './parse'
@@ -117,6 +117,64 @@ const renderPicture = async (
   }
 }
 
+// A code-block note as a picture `columns` cells wide, rendered once per
+// text and width (a resize renders again, at the new width).
+const noteOf = ($: EngineInterface, text: string, columns: number): Rendered => {
+  const id = `note-${hash(text)}-${columns}`
+  const known = pictures.get(id)
+  if (known !== undefined) return known
+
+  pictures.set(id, { kind: 'pending' })
+  void renderNote($, id, text, columns).then(rendered => {
+    pictures.set(id, rendered)
+    $.ui.invalidate('ui.render')
+  })
+
+  return { kind: 'pending' }
+}
+
+const renderNote = async ($: EngineInterface, id: string, text: string, columns: number): Promise<Rendered> => {
+  const txt = `${RENDER_DIR}/${id}.txt`
+  const png = `${RENDER_DIR}/${id}.png`
+  const width = columns * CELL_PX.width
+
+  try {
+    await $.process.run(['mkdir', '-p', RENDER_DIR])
+    await $.fs.write(txt, text)
+    const drawn = await $.process.run(
+      [
+        'magick',
+        '-background', 'none',
+        '-fill', NOTE.color,
+        '-font', NOTE.font,
+        '-pointsize', String(NOTE.points),
+        '-interline-spacing', String(NOTE.interline),
+        '-size', `${width}x`,
+        `caption:@${txt}`,
+        png,
+      ],
+      { timeoutMs: 15_000 },
+    )
+    if (drawn.exitCode !== 0) return failure('magick', drawn)
+
+    const size = pngSize((await $.fs.read(png, { as: 'bytes' })).base64)
+    if (size === undefined) return { kind: 'failed', reason: 'magick wrote no PNG' }
+
+    // Pad to whole rows so the Image box holds the text unstretched.
+    const rows = Math.max(1, Math.ceil(size.height / CELL_PX.height))
+    const padded = await $.process.run(
+      ['magick', png, '-background', 'none', '-gravity', 'northwest', '-extent', `${width}x${rows * CELL_PX.height}`, png],
+      { timeoutMs: 15_000 },
+    )
+    if (padded.exitCode !== 0) return failure('magick', padded)
+
+    const { base64 } = await $.fs.read(png, { as: 'bytes' })
+    return { kind: 'ready', png: base64, width, height: rows * CELL_PX.height }
+  } catch (error) {
+    return { kind: 'failed', reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 export const register: Register = on => {
   // The live stream is drawn by the engine, not by ui.render, so a block is
   // held back until it is whole rather than shown as raw JSON.
@@ -154,6 +212,7 @@ export const register: Register = on => {
     return drawSegments($.ui.resolve(e), segment(e.props.text), columns, {
       picture: block => pictureOf($, block),
       snippet: block => snippetOf($, block),
+      note: (text, width) => noteOf($, text, width),
     })
   })
 }

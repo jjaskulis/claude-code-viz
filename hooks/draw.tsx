@@ -4,6 +4,7 @@
 
 import type { ElementTable, RenderElement } from 'claude-code'
 
+import { CELL_PX } from './graph'
 import type { Loaded, Rendered } from './graph'
 import { nest } from './parse'
 import type { Chart, Compare, Graph, Node, Segment, Snippet, Status, Timeline, Tree } from './parse'
@@ -17,6 +18,7 @@ type Els = Pick<ElementTable, 'Box' | 'Text' | 'Markdown' | 'Code'> & {
 export type Lookups = {
   picture: (block: Graph | Chart) => Rendered
   snippet: (block: Snippet) => Loaded
+  note: (text: string, columns: number) => Rendered
 }
 
 const ACCENT = 'cyan'
@@ -64,7 +66,7 @@ const drawSegment = (els: Els, s: Segment, columns: number, lookups: Lookups, ke
         : s.viz.type === 'graph' || s.viz.type === 'chart'
           ? drawPicture(els, s.viz, inner, lookups.picture(s.viz))
           : s.viz.type === 'code'
-            ? drawSnippet(els, s.viz, lookups.snippet(s.viz))
+            ? drawSnippet(els, s.viz, lookups.snippet(s.viz), inner, lookups.note)
             : drawTree(els, s.viz)
 
   return (
@@ -385,10 +387,53 @@ const drawChartData = (els: Els, chart: Chart): RenderElement => {
 // ① to ⑳, then (21) and on.
 const mark = (n: number): string => (n >= 1 && n <= 20 ? String.fromCodePoint(0x245f + n) : `(${n})`)
 
+// Where a note's marker ends and its text begins: "  ↳ ① ".
+const NOTE_INDENT = 6
+const NOTE_TINT = '#16262b'
+
 // code: the lines with the engine's highlighter, cut after each line a note
 // points at so the note sits right under it; numbering runs on across cuts.
-const drawSnippet = (els: Els, s: Snippet, loaded: Loaded): RenderElement => {
-  const { Box, Text, Code } = els
+// A note is prose in a reading font where the terminal shows pictures, and
+// tinted italic text elsewhere (and until its picture is ready).
+const drawSnippet = (
+  els: Els,
+  s: Snippet,
+  loaded: Loaded,
+  width: number,
+  noteLookup: Lookups['note'],
+): RenderElement => {
+  const { Box, Text, Code, Image } = els
+  const noteColumns = Math.max(20, width - NOTE_INDENT)
+
+  const drawNote = (n: number, text: string): RenderElement => {
+    const rendered = Image !== undefined ? noteLookup(text, noteColumns) : undefined
+    const body =
+      Image !== undefined && rendered?.kind === 'ready' ? (
+        <Image
+          source={{ png: rendered.png }}
+          columns={noteColumns}
+          rows={rendered.height / CELL_PX.height}
+          alt={text}
+        />
+      ) : (
+        <Box width={noteColumns} backgroundColor={NOTE_TINT} paddingX={1}>
+          <Text italic color="white">
+            {text}
+          </Text>
+        </Box>
+      )
+
+    return (
+      <Box flexDirection="row">
+        <Box width={NOTE_INDENT}>
+          <Text color={ACCENT} bold>
+            {'  '}↳ {mark(n)}
+          </Text>
+        </Box>
+        {body}
+      </Box>
+    )
+  }
   const where =
     s.path !== undefined ? `${s.path}:${s.start ?? 1}${s.end !== undefined ? `–${s.end}` : ''}` : undefined
 
@@ -440,18 +485,7 @@ const drawSnippet = (els: Els, s: Snippet, loaded: Loaded): RenderElement => {
   for (const line of [...new Set(shown.map(note => note.line))]) {
     if (line >= at) parts.push(code(at, line))
     at = Math.max(at, line + 1)
-    for (const note of shown.filter(n => n.line === line)) {
-      parts.push(
-        <Box paddingLeft={2}>
-          <Text>
-            <Text color={ACCENT} bold>
-              ↳ {mark(note.n)}{' '}
-            </Text>
-            <Text color={ACCENT}>{note.text}</Text>
-          </Text>
-        </Box>,
-      )
-    }
+    for (const note of shown.filter(n => n.line === line)) parts.push(drawNote(note.n, note.text))
   }
   if (at <= last) parts.push(code(at, last))
 

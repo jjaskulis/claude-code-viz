@@ -142,3 +142,19 @@ export const sliceLines = (text: string, start: number, end: number | undefined,
 
   return { kind: 'ready', text: lines.slice(start - 1, last).join('\n'), start, isCut: last < wanted }
 }
+
+// Code-block notes drawn as pictures: prose in the system's reading font, a
+// size over the terminal's, so a note reads as commentary rather than code.
+// The text goes to ImageMagick through a file, where it stays literal (no
+// `@file` reads, no `%` escapes, as a command-line `caption:` argument has).
+export const NOTE = {
+  font: '/System/Library/Fonts/SFNS.ttf',
+  color: '#e6e6e6',
+  points: 32,
+  interline: 6,
+} as const
+
+// A terminal cell in picture pixels, as the 144 dpi pictures are drawn: a
+// note is rendered at its columns' width and padded to whole rows, so the
+// Image box holds it unstretched.
+export const CELL_PX = { width: 14, height: 28 } as const
