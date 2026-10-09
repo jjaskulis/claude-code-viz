@@ -78,6 +78,10 @@ Example block:
 
 ## Install
 
+**Installing with a coding agent?** Point it at
+[`INSTALL-FOR-AGENTS.md`](INSTALL-FOR-AGENTS.md): exact steps that merge into
+your existing settings, with checks after each one.
+
 The commands below clone into `~/.claude/viz`. Any folder works: use the same
 path in all three places (clone, `CLAUDE_CODE_PLUGIN_DIRS`, the `@` import).
 
