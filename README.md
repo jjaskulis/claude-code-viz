@@ -21,6 +21,29 @@ spinner says what it is drawing. Pictures use the terminal's dark colors on a
 transparent background (`THEME` in `hooks/graph.ts`). Where a surface cannot
 show a picture, a graph shows its dot source and a chart its data as a table.
 
+## Gallery
+
+Graph and chart blocks are drawn as pictures:
+
+![A graph block: nested clusters for app and data](docs/images/graph.png)
+
+![A chart block: a Vega-Lite bar chart](docs/images/chart.png)
+
+`compare`, `timeline`, `tree`, `code`, `trace` and `sequence` are drawn as text
+layouts, so they work in any terminal.
+
+## Terminals
+
+- **Text blocks** (`compare`, `timeline`, `tree`, `code`, `trace`, `sequence`)
+  work in any terminal that runs Claude Code.
+- **Pictures** (`graph`, `chart`, `types`) need the kitty graphics protocol.
+  Ghostty and kitty are the ones this was built against. WezTerm also
+  implements the protocol, but it is untested here.
+- **Anywhere else** a graph shows its dot source and a chart its data as a
+  table, so nothing is lost, only not drawn.
+- In Ghostty, Claude Code may keep images off until the terminal confirms the
+  protocol. See Known quirks for the setting that turns them on.
+
 ## Use
 
 Once installed, ask for structure in plain words: "compare these three options",
