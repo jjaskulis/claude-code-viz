@@ -23,14 +23,23 @@ show a picture, a graph shows its dot source and a chart its data as a table.
 
 ## Gallery
 
-Graph and chart blocks are drawn as pictures:
+Text layouts, drawn in the terminal:
+
+![A compare block: three options against criteria, best values and a pick marked](docs/images/compare.png)
+
+![A timeline block: steps with done, active, blocked and todo marks](docs/images/timeline.png)
+
+![A tree block: files with add, edit and delete marks](docs/images/tree.png)
+
+Pictures, drawn through Graphviz and Vega-Lite:
+
+![A types block: two tables linked by a foreign key](docs/images/types.png)
 
 ![A graph block: nested clusters for app and data](docs/images/graph.png)
 
 ![A chart block: a Vega-Lite bar chart](docs/images/chart.png)
 
-`compare`, `timeline`, `tree`, `code`, `trace` and `sequence` are drawn as text
-layouts, so they work in any terminal.
+`code`, `trace` and `sequence` blocks are text layouts too.
 
 ## Terminals
 
