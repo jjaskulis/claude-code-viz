@@ -57,12 +57,26 @@ Load it in every session through the `env` block of `~/.claude/settings.json`:
 { "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/Dev/viz-mod" } }
 ```
 
-Teach the model the blocks by importing the vocabulary from `~/.claude/CLAUDE.md`
-(a mod's own system-prompt hooks can be blocked by managed policy):
+Then teach Claude the language, see below.
+
+## Teach Claude the language
+
+The mod only draws blocks. Claude writes them only if it has read
+`VOCABULARY.md`, which lists every block type, its fields and an example.
+Without it, Claude never emits a ```viz block.
+
+Import it from `~/.claude/CLAUDE.md` to teach every session:
 
 ```
 @~/Dev/viz-mod/VOCABULARY.md
 ```
+
+Or put the same line in one project's `CLAUDE.md` to teach only that project.
+You can also paste the file's contents in. A mod's own system-prompt hooks can
+be blocked by managed policy, which is why the mod does not inject it itself.
+
+Check it worked: start a new session and ask "compare Redis and Postgres as a
+queue". You should see a drawn comparison, not raw JSON.
 
 ## Known quirks
 
