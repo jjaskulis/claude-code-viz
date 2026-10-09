@@ -33,6 +33,8 @@ Text layouts, drawn in the terminal:
 
 ![A trace block: an execution path with places, depth and lines read from disk](docs/images/trace.png)
 
+![A sequence block: participants, numbered messages and arrows](docs/images/sequence.png)
+
 ![A tree block: files with add, edit and delete marks](docs/images/tree.png)
 
 Pictures, drawn through Graphviz and Vega-Lite:
@@ -42,8 +44,6 @@ Pictures, drawn through Graphviz and Vega-Lite:
 ![A graph block: nested clusters for app and data](docs/images/graph.png)
 
 ![A chart block in the terminal](docs/images/chart-terminal.png)
-
-`sequence` blocks are text layouts too.
 
 ## Terminals
 
