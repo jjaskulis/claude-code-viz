@@ -8,7 +8,11 @@ object; the mod draws it in place of the block.
 | --- | --- | --- |
 | `compare` | options side by side against criteria, best values and a pick marked | Box and Text |
 | `timeline` | ordered steps with done / active / todo / blocked | Box and Text |
+| `code` | lines read from a file on disk, with notes on chosen lines | Box and Text |
+| `trace` | an execution path: places, call depth, kinds, lines from disk | Box and Text |
 | `tree` | flat file paths as a directory tree with change marks | Box and Text |
+| `sequence` | participants with text lifelines and arrows | Box and Text |
+| `types` | shapes with fields and links between them | `dot` → PNG → Image |
 | `graph` | Graphviz `dot` source as a diagram | `dot` → PNG → Image |
 | `chart` | a Vega-Lite spec with inline data | `vl2svg` → `rsvg-convert` → PNG → Image |
 
@@ -16,6 +20,22 @@ While a block streams in, the mod holds it back so raw JSON never shows, and the
 spinner says what it is drawing. Pictures use the terminal's dark colors on a
 transparent background (`THEME` in `hooks/graph.ts`). Where a surface cannot
 show a picture, a graph shows its dot source and a chart its data as a table.
+
+## Use
+
+Once installed, ask for structure in plain words: "compare these three options",
+"show the steps as a timeline", "draw how these modules relate", "chart these
+numbers". The model answers with a short sentence and a ```viz block, which the
+mod draws. `VOCABULARY.md` lists every shape and field. Run `/viz-open` to open
+the latest picture in Preview when it is too small to read in the terminal.
+
+Example block:
+
+````
+```viz
+{"type":"timeline","steps":[{"label":"Write","status":"done"},{"label":"Ship","status":"active"}]}
+```
+````
 
 ## Requirements
 
@@ -27,21 +47,21 @@ show a picture, a graph shows its dot source and a chart its data as a table.
 ## Install
 
 ```sh
-git clone <this repo> ~/Dev/personal/viz-mod
-cd ~/Dev/personal/viz-mod/renderers && npm install
+git clone https://github.com/jjaskulis/claude-code-viz ~/Dev/viz-mod
+cd ~/Dev/viz-mod/renderers && npm install
 ```
 
 Load it in every session through the `env` block of `~/.claude/settings.json`:
 
 ```json
-{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/Dev/personal/viz-mod" } }
+{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/Dev/viz-mod" } }
 ```
 
 Teach the model the blocks by importing the vocabulary from `~/.claude/CLAUDE.md`
 (a mod's own system-prompt hooks can be blocked by managed policy):
 
 ```
-@~/Dev/personal/viz-mod/VOCABULARY.md
+@~/Dev/viz-mod/VOCABULARY.md
 ```
 
 ## Known quirks
@@ -61,3 +81,7 @@ claude plugin validate .
 claude plugin test .
 npx -p typescript@5 tsc -p .
 ```
+
+## License
+
+MIT, see `LICENSE`.
