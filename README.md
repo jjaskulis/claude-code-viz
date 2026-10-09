@@ -63,21 +63,39 @@ Example block:
 ## Requirements
 
 - Claude Code with mods (function hooks); built against 2.1.289
-- Graphviz (`dot`) and librsvg (`rsvg-convert`) on the PATH, e.g. `brew install graphviz librsvg`
+- Graphviz (`dot`) and librsvg (`rsvg-convert`) on the PATH (see Install)
 - Node.js, for the chart renderer
 - For pictures: a terminal with the kitty graphics protocol (Ghostty, kitty)
 
 ## Install
 
+The commands below clone into `~/.claude/viz`. Any folder works: use the same
+path in all three places (clone, `CLAUDE_CODE_PLUGIN_DIRS`, the `@` import).
+
+1. Install the system tools. Only `graph`, `types` and `chart` blocks need them;
+   text blocks need none.
+
+   ```sh
+   # macOS
+   brew install graphviz librsvg
+   # Debian / Ubuntu
+   sudo apt install graphviz librsvg2-bin
+   ```
+
+   Node.js must also be installed (any current LTS), for the chart renderer.
+
+2. Clone and install the Node dependencies (`vega`, `vega-lite`, `vega-cli`,
+   installed into `renderers/` only, nothing global):
+
 ```sh
-git clone https://github.com/jjaskulis/claude-code-viz ~/Dev/viz-mod
-cd ~/Dev/viz-mod/renderers && npm install
+git clone https://github.com/jjaskulis/claude-code-viz ~/.claude/viz
+cd ~/.claude/viz/renderers && npm install
 ```
 
 Load it in every session through the `env` block of `~/.claude/settings.json`:
 
 ```json
-{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/Dev/viz-mod" } }
+{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "~/.claude/viz" } }
 ```
 
 Then teach Claude the language, see below.
@@ -91,7 +109,7 @@ Without it, Claude never emits a ```viz block.
 Import it from `~/.claude/CLAUDE.md` to teach every session:
 
 ```
-@~/Dev/viz-mod/VOCABULARY.md
+@~/.claude/viz/VOCABULARY.md
 ```
 
 Or put the same line in one project's `CLAUDE.md` to teach only that project.
