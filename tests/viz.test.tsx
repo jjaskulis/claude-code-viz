@@ -228,22 +228,22 @@ describe('viz blocks', () => {
   const types = {
     type: 'types',
     shapes: [
-      { name: 'EditParams', kind: 'interface', fields: [{ name: 'pages', type: 'Page[]' }, { name: 'codegen?', type: 'CodegenParams' }] },
-      { name: 'CodegenParams', kind: 'type', fields: [{ name: 'resources', type: 'Resources' }] },
+      { name: 'OrderParams', kind: 'interface', fields: [{ name: 'pages', type: 'Page[]' }, { name: 'payment?', type: 'PaymentParams' }] },
+      { name: 'PaymentParams', kind: 'type', fields: [{ name: 'amount', type: 'Money' }] },
     ],
-    links: [{ from: 'EditParams.codegen?', to: 'CodegenParams', label: 'optional' }],
+    links: [{ from: 'OrderParams.payment?', to: 'PaymentParams', label: 'optional' }],
   }
 
   test('types lists its shapes where the surface has no Image', async $ => {
     const ui = await mount($, 'desktop', fence(types))
 
-    expect(await ui.find({ type: 'Text', text: 'EditParams' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /EditParams\.codegen\? → CodegenParams: optional/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'OrderParams' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /OrderParams\.payment\? → PaymentParams: optional/ })).toBeDefined()
     await ui.unmount()
   })
 
   test('a types link to an unknown field is refused', async $ => {
-    const bad = { ...types, links: [{ from: 'EditParams.nope', to: 'CodegenParams' }] }
+    const bad = { ...types, links: [{ from: 'OrderParams.nope', to: 'PaymentParams' }] }
     const ui = await mount($, 'terminal', fence(bad))
 
     expect(await ui.find({ type: 'Text', text: /naming a shape or Shape\.field/ })).toBeDefined()
