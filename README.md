@@ -29,6 +29,8 @@ Text layouts, drawn in the terminal:
 
 ![A timeline block: steps with done, active, blocked and todo marks](docs/images/timeline.png)
 
+![A code block: lines with numbered notes](docs/images/code.png)
+
 ![A tree block: files with add, edit and delete marks](docs/images/tree.png)
 
 Pictures, drawn through Graphviz and Vega-Lite:
@@ -37,9 +39,9 @@ Pictures, drawn through Graphviz and Vega-Lite:
 
 ![A graph block: nested clusters for app and data](docs/images/graph.png)
 
-![A chart block: a Vega-Lite bar chart](docs/images/chart.png)
+![A chart block in the terminal](docs/images/chart-terminal.png)
 
-`code`, `trace` and `sequence` blocks are text layouts too.
+`trace` and `sequence` blocks are text layouts too.
 
 ## Terminals
 
